@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import https from 'node:https';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
-import { AKALI_ID } from './riot.js';
+import { FOCUS, FOCUS_IDS } from './riot.js';
 
 const DEFAULT_PATHS = [
   process.env.LOL_PATH,
@@ -120,7 +120,7 @@ const LANE_MAP = { TOP: 'TOP', MIDDLE: 'MIDDLE', MID: 'MIDDLE', JUNGLE: 'JUNGLE'
 function normalizeLcuGame(g, puuid) {
   const ident = g.participantIdentities?.find((i) => i.player?.puuid === puuid) || g.participantIdentities?.[0];
   const me = g.participants?.find((p) => p.participantId === ident?.participantId) || g.participants?.[0];
-  if (!me || me.championId !== AKALI_ID || g.gameDuration < 300) return null;
+  if (!me || !FOCUS[me.championId] || g.gameDuration < 300) return null;
   const s = me.stats;
   const minutes = g.gameDuration / 60;
   const cs = s.totalMinionsKilled + s.neutralMinionsKilled;
@@ -128,6 +128,7 @@ function normalizeLcuGame(g, puuid) {
   if (lane === 'BOTTOM' && me.timeline?.role === 'DUO_SUPPORT') lane = 'UTILITY';
   return {
     id: `LCU_${g.gameId}`,
+    championId: me.championId,
     date: g.gameCreation,
     duration: g.gameDuration,
     queue: g.queueId,
@@ -165,7 +166,7 @@ export async function getLcuData() {
       profileIconId: summoner.profileIconId,
       summonerLevel: summoner.summonerLevel,
       platform: REGION_TO_PLATFORM[region] || null,
-      mastery: (masteries || []).find((m) => m.championId === AKALI_ID) || null,
+      masteries: Object.fromEntries(FOCUS_IDS.map((id) => [id, (masteries || []).find((m) => m.championId === id) || null])),
       topMastery: (masteries || []).slice(0, 5),
       matches: games.map((g) => normalizeLcuGame(g, summoner.puuid)).filter(Boolean),
     };

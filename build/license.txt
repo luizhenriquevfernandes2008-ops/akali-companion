@@ -1,0 +1,33 @@
+﻿AKALI COMPANION — TERMOS DE USO
+
+Antes de instalar, leia:
+
+1. PROJETO DE FÃ
+O Akali Companion é um projeto de fã, gratuito e sem fins lucrativos. Ele NÃO é
+afiliado, endossado ou patrocinado pela Riot Games. League of Legends, seus
+campeões, imagens e marcas pertencem à Riot Games, Inc.
+
+2. O QUE O APP FAZ NO SEU COMPUTADOR
+- Lê dados do cliente do League of Legends (API local) para mostrar sua conta,
+  maestrias, partidas e a seleção de campeões.
+- Executa ações no cliente SOMENTE quando você pede (entrar na fila, aceitar
+  partida, escolher/banir campeões, feitiços, skins e runas) ou quando você
+  liga uma automação (aceite automático, importação de runas).
+- Lê a API oficial de partida ao vivo da Riot (porta 2999) para o monitor.
+- Consulta a API pública do OP.GG e o Data Dragon da Riot.
+
+3. CONTROLE PELO CELULAR
+Fica desativado até você ligar em Configurações. Quando ligado, só aparelhos da
+mesma rede com o código secreto (QR code) conseguem acessar. Na primeira vez, o
+Windows pode pedir permissão no firewall: permita em redes privadas.
+
+4. SEUS DADOS
+A chave da Riot, o cache de partidas e as preferências ficam apenas no seu
+computador, em %APPDATA%\Akali Companion. Nada é enviado para servidores do
+autor.
+
+5. SEM GARANTIA
+A API local do cliente não é oficial e pode mudar em atualizações do jogo. O app
+é fornecido "como está", sem garantia de funcionamento.
+
+Ao continuar, você concorda com estes termos.

@@ -3,10 +3,23 @@ const DD = 'https://ddragon.leagueoflegends.com';
 const CD = 'https://raw.communitydragon.org/latest';
 const LANG = 'pt_BR';
 const NEW_KDA_SKIN = 102; // Akali K/DA FIRESTARTER Ignição
+
+// Campeões acompanhados pelo app. lanes: rotas mostradas nas abas; featured: skins em destaque no início
+const CHAMPS = {
+  Akali: { key: 84, lanes: ['MIDDLE', 'TOP'], lanesLabel: 'Meio / Topo', defaultSkin: NEW_KDA_SKIN, featured: (s) => /K\/DA/.test(s.name), featuredLabel: 'as skins K/DA' },
+  Lulu: { key: 117, lanes: ['UTILITY', 'MIDDLE'], lanesLabel: 'Suporte / Meio' },
+  Twitch: { key: 29, lanes: ['BOTTOM', 'JUNGLE'], lanesLabel: 'Atirador / Selva' },
+  Nami: { key: 267, lanes: ['UTILITY'], lanesLabel: 'Suporte' },
+};
+const CH = () => CHAMPS[S.champ];
+const CN = () => S.cd?.name || S.champ;                       // nome exibido do campeão atual
+const champMatches = (p = S.player) => (p?.matches || []).filter((m) => (m.championId ?? 84) === CH().key);
+const masteryOf = (p = S.player) => (p?.masteries ? p.masteries[CH().key] : CH().key === 84 ? p?.mastery : null) || null;
+const historyOf = (p = S.player) => (Array.isArray(p?.masteryHistory) ? (CH().key === 84 ? p.masteryHistory : []) : p?.masteryHistory?.[CH().key] || []);
 const DEFAULT_PPG = 700;   // pontos de maestria por partida (estimativa até termos seu histórico real)
 
 const S = {
-  v: null, akali: null, items: {}, runes: {}, summs: {}, champsByKey: {}, champsById: {},
+  v: null, cd: null, champ: 'Akali', cdCache: {}, items: {}, runes: {}, summs: {}, champsByKey: {}, champsById: {},
   data: null, config: { hasKey: false, platforms: ['br1'] },
   player: null, loading: false, error: null, lcuChecking: false,
   lane: 'MIDDLE', queue: 'all', rotateTimer: null,
@@ -55,9 +68,9 @@ function timeAgo(ts) {
 
 // ---------------- URLs de imagem ----------------
 const img = {
-  splash: (n) => `${DD}/cdn/img/champion/splash/Akali_${n}.jpg`,
-  loading: (n) => `${DD}/cdn/img/champion/loading/Akali_${n}.jpg`,
-  tile: (n) => `${DD}/cdn/img/champion/tiles/Akali_${n}.jpg`,
+  splash: (n) => `${DD}/cdn/img/champion/splash/${S.champ}_${n}.jpg`,
+  loading: (n) => `${DD}/cdn/img/champion/loading/${S.champ}_${n}.jpg`,
+  tile: (n) => `${DD}/cdn/img/champion/tiles/${S.champ}_${n}.jpg`,
   champ: (id) => `${DD}/cdn/${S.v}/img/champion/${id}.png`,
   item: (id) => `${DD}/cdn/${S.v}/img/item/${id}.png`,
   spell: (file) => `${DD}/cdn/${S.v}/img/spell/${file}`,
@@ -123,16 +136,23 @@ function setBg(num) {
   pre.src = img.splash(num);
   S.bg = num;
 }
-const baseSkins = () => (S.akali?.skins || []).filter((s) => s.parentSkin == null);
+const baseSkins = () => (S.cd?.skins || []).filter((s) => s.parentSkin == null);
 const skinName = (num) => {
-  const s = (S.akali?.skins || []).find((x) => x.num === num);
-  return !s ? '' : s.name === 'default' ? 'Akali Clássica' : s.name;
+  const s = (S.cd?.skins || []).find((x) => x.num === num);
+  return !s ? '' : s.name === 'default' ? `${CN()} Clássica` : s.name;
 };
+// skins em destaque: as K/DA da Akali; para os outros, as 6 mais recentes
+const featuredSkins = () => {
+  const all = baseSkins();
+  const f = CH().featured ? all.filter(CH().featured) : [...all].sort((a, b) => b.num - a.num).slice(0, 6);
+  return f.length ? f : all.slice(-6);
+};
+const defaultSkin = () => CH().defaultSkin ?? Math.max(...baseSkins().map((s) => s.num));
 function setRotation(on) {
   clearInterval(S.rotateTimer);
   store.set('rotate', on);
   if (!on) return;
-  const kda = baseSkins().filter((s) => /K\/DA/.test(s.name)).map((s) => s.num);
+  const kda = featuredSkins().map((s) => s.num);
   let i = Math.max(0, kda.indexOf(S.bg));
   S.rotateTimer = setInterval(() => {
     i = (i + 1) % kda.length;
@@ -161,8 +181,8 @@ function tipHtml(key) {
     return s ? `<strong>${esc(s.name)}</strong>${esc(stripHtml(s.description))}<br><span class="gold">Recarga: ${s.cooldownBurn}s</span>` : '';
   }
   if (type === 'ability') {
-    if (val === 'P') return `<strong>${esc(S.akali.passive.name)} (Passiva)</strong>${esc(stripHtml(S.akali.passive.description))}`;
-    const sp = S.akali.spells['QWER'.indexOf(val)];
+    if (val === 'P') return `<strong>${esc(S.cd.passive.name)} (Passiva)</strong>${esc(stripHtml(S.cd.passive.description))}`;
+    const sp = S.cd.spells['QWER'.indexOf(val)];
     return `<strong>${esc(sp.name)} (${val})</strong>${esc(stripHtml(sp.description))}<br><span class="gold">Recarga: ${sp.cooldownBurn}s</span>`;
   }
   return '';
@@ -195,7 +215,7 @@ function initTooltip() {
 
 // ---------------- análise das partidas ----------------
 function filteredMatches() {
-  const ms = S.player?.matches || [];
+  const ms = champMatches();
   if (S.queue === 'all') return ms;
   if (S.queue === 'ranked') return ms.filter((m) => m.queue === 420 || m.queue === 440);
   return ms.filter((m) => String(m.queue) === S.queue);
@@ -298,13 +318,13 @@ function renderAccount() {
     box.innerHTML = `<div class="panel" style="padding:14px"><div class="muted" style="font-size:12px;margin-bottom:8px">Nenhuma conta conectada</div><a class="btn small primary" href="#/">Conectar</a></div>`;
     return;
   }
-  const m = p.mastery;
+  const m = masteryOf(p);
   box.innerHTML = `
     <div class="panel" style="padding:14px;display:flex;gap:10px;align-items:center">
       <img class="icon round" src="${img.profile(p.profileIconId)}" alt="">
       <div style="min-width:0;flex:1">
         <div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.gameName)}<span class="muted">#${esc(p.tagLine)}</span></div>
-        <div class="muted" style="font-size:12px">${m ? `Maestria ${m.championLevel} · ${fmt(m.championPoints)} pts` : 'Sem maestria de Akali'}</div>
+        <div class="muted" style="font-size:12px">${m ? `Maestria ${m.championLevel} · ${fmt(m.championPoints)} pts` : `Sem maestria de ${esc(CN())}`}</div>
         <div class="muted" style="font-size:11px">${p.source === 'lcu' ? 'via cliente do LoL' : 'via Riot API'}</div>
       </div>
       <button class="btn small" data-action="logout" title="Desconectar">✕</button>
@@ -313,7 +333,7 @@ function renderAccount() {
 
 // ---------------- views ----------------
 function needPlayer() {
-  if (S.loading) return `<div class="loading">Buscando suas partidas de Akali… (a primeira vez pode levar até 1 minuto por causa do limite da API)</div>`;
+  if (S.loading) return `<div class="loading">Buscando suas partidas… (a primeira vez pode levar até 1 minuto por causa do limite da API)</div>`;
   return `
     <div class="panel" style="max-width:560px">
       <h2 style="font-size:26px">Conecte sua conta</h2>
@@ -324,22 +344,23 @@ function needPlayer() {
 }
 
 function laneTabs() {
-  return `<div class="tabs">${['MIDDLE', 'TOP'].map((l) =>
+  return `<div class="tabs">${CH().lanes.map((l) =>
     `<button class="tab ${S.lane === l ? 'active' : ''}" data-action="lane" data-lane="${l}">${laneIcon(l)} ${LANES[l]}</button>`).join('')}</div>`;
 }
 
 function viewHome() {
   const p = S.player;
-  const a = p ? agg(p.matches || []) : null;
-  const kda = baseSkins().filter((s) => /K\/DA/.test(s.name) || s.num === NEW_KDA_SKIN);
+  const a = p ? agg(champMatches(p)) : null;
+  const mastery = masteryOf(p);
+  const kda = featuredSkins();
   const abilities = ['P', 'Q', 'W', 'E', 'R'].map((k) => {
-    const src = k === 'P' ? img.passive(S.akali.passive.image.full) : img.spell(S.akali.spells['QWER'.indexOf(k)].image.full);
+    const src = k === 'P' ? img.passive(S.cd.passive.image.full) : img.spell(S.cd.spells['QWER'.indexOf(k)].image.full);
     return `<div class="ability" data-tip="ability:${k}"><img class="icon lg" src="${src}" alt="${k}"><span class="key">${k}</span></div>`;
   }).join('');
 
   const connect = p
     ? `<div class="grid g6" style="margin-top:28px;max-width:900px">
-        ${tile('Maestria', p.mastery ? `Nv ${p.mastery.championLevel}` : '—', p.mastery ? `${fmt(p.mastery.championPoints)} pontos` : '')}
+        ${tile('Maestria', mastery ? `Nv ${mastery.championLevel}` : '—', mastery ? `${fmt(mastery.championPoints)} pontos` : '')}
         ${tile('Partidas', a.n, `últimas ${p.scanned ?? a.n} analisadas`)}
         ${tile('Winrate', a.n ? pct(a.wr) : '—', `${a.w}V ${a.l}D`, a.wr >= 50 ? 'win' : 'loss')}
         ${tile('KDA', a.n ? fmt(a.kda, 2) : '—', a.n ? `${fmt(a.k, 1)} / ${fmt(a.d, 1)} / ${fmt(a.a, 1)}` : '')}
@@ -358,15 +379,15 @@ function viewHome() {
 
   return `
     <section class="hero">
-      <div class="eyebrow">League of Legends · Meio / Topo</div>
-      <h1>AKALI</h1>
-      <div class="title">${esc(S.akali.title)}</div>
+      <div class="eyebrow">League of Legends · ${CH().lanesLabel}</div>
+      <h1>${esc(CN().toUpperCase())}</h1>
+      <div class="title">${esc(S.cd.title)}</div>
       <div class="skin-name"><span class="chip pink">${esc(skinName(S.bg))}</span></div>
       <div class="abilities" style="margin-top:22px">${abilities}</div>
       ${connect}
       ${warn}
     </section>
-    <div class="section-title">Fundo <small>clique para trocar · <label style="cursor:pointer"><input type="checkbox" data-action="rotate" ${store.get('rotate', false) ? 'checked' : ''}> alternar entre as skins K/DA</label></small></div>
+    <div class="section-title">Fundo <small>clique para trocar · <label style="cursor:pointer"><input type="checkbox" data-action="rotate" ${store.get('rotate', false) ? 'checked' : ''}> alternar entre ${CH().featuredLabel || 'as skins em destaque'}</label></small></div>
     <div class="icons">
       ${kda.map((s) => `<img class="icon lg" style="cursor:pointer;${s.num === S.bg ? 'border-color:var(--pink);box-shadow:0 0 0 2px var(--pink)' : ''}" src="${img.tile(s.num)}" data-action="skin" data-num="${s.num}" data-tip="text:${esc(s.name)}" alt="">`).join('')}
       <a class="btn small" href="#/skins" style="margin-left:6px">Todas as skins →</a>
@@ -379,7 +400,7 @@ function tile(label, value, hint = '', cls = '') {
 
 function skillGrid(levels) {
   const rows = ['Q', 'W', 'E', 'R'].map((k) => {
-    const sp = S.akali.spells['QWER'.indexOf(k)];
+    const sp = S.cd.spells['QWER'.indexOf(k)];
     return `<img class="icon sm" src="${img.spell(sp.image.full)}" data-tip="ability:${k}" alt="${k}">` +
       levels.map((l) => `<div class="cell ${l === k ? 'on' : ''} ${l === 'R' && k === 'R' ? 'r' : ''}">${l === k ? k : ''}</div>`).join('');
   }).join('');
@@ -398,7 +419,7 @@ const statLine = (x) => (x ? `<div class="stat-line"><b class="${wrCls(x.winRate
 const itemSeq = (ids) => ids.map((id, i) => `${i ? '<span class="arrow">›</span>' : ''}${itemIcon(id)}`).join('');
 
 function opggMeta() {
-  const r = useRemote(`meta:${S.lane}`, `/api/opgg/meta?lane=${S.lane}`);
+  const r = useRemote(`meta:${S.champ}:${S.lane}`, `/api/opgg/meta?lane=${S.lane}&champ=${S.champ}`);
   const st = remoteState(r, 'as estatísticas');
   if (st) return st;
   const m = r.data;
@@ -408,7 +429,7 @@ function opggMeta() {
     <article class="panel build opgg">
       <div class="build-head">
         <div><h3>Build mais jogada ${opggChip(`OP.GG · patch ${esc(m.patch || '')}`)}</h3>
-        <div class="muted">${fmt(m.stats.games)} partidas ranqueadas de Akali no ${LANES[S.lane].toLowerCase()} neste patch.</div></div>
+        <div class="muted">${fmt(m.stats.games)} partidas ranqueadas de ${esc(CN())} (${LANES[S.lane].toLowerCase()}) neste patch.</div></div>
       </div>
       <div class="grid g6">
         ${tile('Winrate', pctR(m.stats.winRate), '', wrCls(m.stats.winRate))}
@@ -436,14 +457,16 @@ function opggMeta() {
 }
 
 function viewBuilds() {
-  const builds = S.data.builds[S.lane] || [];
+  // builds escritas à mão existem só para a Akali; os outros usam só os dados do OP.GG
+  const curated = S.champ === 'Akali';
+  const builds = curated ? S.data.builds[S.lane] || [] : [];
   const { levels } = S.data.skillOrder;
 
-  const mine = (S.player?.matches || []).filter((m) => m.lane === S.lane);
+  const mine = champMatches().filter((m) => m.lane === S.lane);
   let personal = '';
   if (S.player) {
     if (!mine.length) {
-      personal = `<div class="empty">Nenhuma partida de Akali ${LANES[S.lane].toLowerCase()} no seu histórico recente.</div>`;
+      personal = `<div class="empty">Nenhuma partida de ${esc(CN())} (${LANES[S.lane].toLowerCase()}) no seu histórico recente.</div>`;
     } else {
       const items = itemStats(mine).slice(0, 8);
       const keys = groupBy(mine, (m) => m.keystone).slice(0, 3);
@@ -470,12 +493,12 @@ function viewBuilds() {
     <p class="page-sub">Estatísticas reais do OP.GG para o patch atual, mais builds alternativas. Passe o mouse em qualquer ícone para ver os detalhes.</p>
     ${laneTabs()}
     ${opggMeta()}
-    <div class="section-title">Builds alternativas <small>variações para situações específicas</small></div>
+    ${builds.length ? `<div class="section-title">Builds alternativas <small>variações para situações específicas</small></div>
     <div class="grid">
       ${builds.map((b) => buildCard(b)).join('')}
-    </div>
-    <div class="section-title">Ordem de habilidades padrão <small>maximize ${S.data.skillOrder.max.join(' › ')}</small></div>
-    <div class="panel">${skillGrid(levels)}</div>
+    </div>` : ''}
+    ${curated ? `<div class="section-title">Ordem de habilidades padrão <small>maximize ${S.data.skillOrder.max.join(' › ')}</small></div>
+    <div class="panel">${skillGrid(levels)}</div>` : ''}
     ${S.player ? `<div class="section-title">Sua build na prática <small>baseado nas suas partidas</small></div>${personal}` : ''}`;
 }
 
@@ -516,24 +539,25 @@ function diffBar(n, kind) {
   return `<span class="diff ${kind}" title="Dificuldade ${n}/5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
 }
 
-const ADV = (v, opp) => (!v ? '—' : v === 'EVEN' ? 'Equilibrada' : v === 'Akali' ? 'Akali' : esc(opp));
+const ADV = (v, opp) => (!v ? '—' : v === 'EVEN' ? 'Equilibrada' : v === S.champ || v === CN() ? esc(CN()) : esc(opp));
 const STYLE = { aggressive: 'Agressivo', even: 'Equilibrado', passive: 'Defensivo', defensive: 'Defensivo' };
 
 function guidePanel(opponents) {
   if (!S.guideOpp) return '';
-  const r = useRemote(`guide:${S.lane}:${S.guideOpp}`, `/api/opgg/matchup?lane=${S.lane}&opponent=${encodeURIComponent(S.guideOpp)}`);
+  const r = useRemote(`guide:${S.champ}:${S.lane}:${S.guideOpp}`, `/api/opgg/matchup?lane=${S.lane}&champ=${S.champ}&opponent=${encodeURIComponent(S.guideOpp)}`);
   const st = remoteState(r, `o guia contra ${S.guideOpp}`);
   if (st) return st;
   const g = r.data;
   const c = Object.values(S.champsById).find((x) => x.name === S.guideOpp || x.name === g.opponent) || champInfo(S.guideOpp);
   const vs = opponents.find((o) => String(o.championId) === String(c.key));
-  const curated = [...S.data.matchups[S.lane].counters, ...S.data.matchups[S.lane].favorable].find((m) => m.champ === c.id);
+  const tips = S.champ === 'Akali' ? S.data.matchups[S.lane] : null;
+  const curated = tips ? [...tips.counters, ...tips.favorable].find((m) => m.champ === c.id) : null;
   return `
     <article class="panel build guide">
       <div class="build-head">
         <div style="display:flex;gap:14px;align-items:center">
-          <img class="icon lg" src="${img.champ('Akali')}" alt="Akali"><b style="font:700 20px var(--font-head)">VS</b>${champIcon(c.key || c.id, 'lg')}
-          <div><h3>Akali vs ${esc(c.name)}</h3>
+          <img class="icon lg" src="${img.champ(S.champ)}" alt=""><b style="font:700 20px var(--font-head)">VS</b>${champIcon(c.key || c.id, 'lg')}
+          <div><h3>${esc(CN())} vs ${esc(c.name)}</h3>
           <div class="muted">${vs ? `<b class="${wrCls(vs.winRate)}">${pctR(vs.winRate)} de vitórias</b> em ${fmt(vs.games)} partidas` : 'Sem dados suficientes de winrate'}</div></div>
         </div>
         <button class="btn small" data-action="guide-close">Fechar ✕</button>
@@ -560,18 +584,18 @@ function opponentRow(o, kind) {
     ${champIcon(String(o.championId), 'lg')}
     <div style="flex:1"><div class="name">${esc(c.name)}</div>
     <div class="bar" style="margin-top:6px"><span style="width:${(o.winRate * 100).toFixed(1)}%;${kind === 'hard' ? 'background:var(--loss)' : 'background:var(--win)'}"></span></div>
-    <p>Akali vence <b class="${wrCls(o.winRate)}">${pctR(o.winRate)}</b> · ${fmt(o.games)} partidas</p></div>
+    <p>${esc(CN())} vence <b class="${wrCls(o.winRate)}">${pctR(o.winRate)}</b> · ${fmt(o.games)} partidas</p></div>
     <span class="muted" style="align-self:center">guia ›</span></div>`;
 }
 
 function viewMatchups() {
-  const r = useRemote(`mu:${S.lane}`, `/api/opgg/matchup?lane=${S.lane}`);
+  const r = useRemote(`mu:${S.champ}:${S.lane}`, `/api/opgg/matchup?lane=${S.lane}&champ=${S.champ}`);
   const opponents = r.status === 'ok' ? r.data.opponents : [];
   const minGames = 100;
   const solid = opponents.filter((o) => o.games >= minGames);
   const hard = [...solid].sort((a, b) => a.winRate - b.winRate).slice(0, 8);
   const easy = [...solid].sort((a, b) => b.winRate - a.winRate).slice(0, 8);
-  const mu = S.data.matchups[S.lane];
+  const mu = S.champ === 'Akali' ? S.data.matchups[S.lane] : null;
   const tipRow = (m, kind) => {
     const c = champInfo(m.champ);
     return `<div class="mu clickable" data-action="guide" data-champ="${esc(c.name)}">${champIcon(m.champ, 'lg')}<div style="flex:1"><div class="name">${esc(c.name)} ${diffBar(m.difficulty, kind)}</div><p>${esc(m.tip)}</p></div></div>`;
@@ -579,12 +603,12 @@ function viewMatchups() {
 
   let personal = '';
   if (S.player) {
-    const ms = (S.player.matches || []).filter((m) => m.lane === S.lane && m.opponent);
+    const ms = champMatches().filter((m) => m.lane === S.lane && m.opponent);
     const opp = groupBy(ms, (m) => String(m.opponent.championId));
     if (S.player.source === 'lcu') {
       personal = `<div class="empty">O histórico do cliente do LoL não informa quem era seu oponente de rota. Com uma API key válida da Riot no .env, seus matchups reais aparecem aqui.</div>`;
     } else if (!opp.length) {
-      personal = `<div class="empty">Sem partidas de Akali ${LANES[S.lane].toLowerCase()} no histórico recente.</div>`;
+      personal = `<div class="empty">Sem partidas de ${esc(CN())} (${LANES[S.lane].toLowerCase()}) no histórico recente.</div>`;
     } else {
       personal = `<div class="panel"><table>
         <thead><tr><th>Oponente</th><th>Partidas</th><th>Seu winrate</th><th></th><th>Seu KDA</th></tr></thead>
@@ -601,7 +625,7 @@ function viewMatchups() {
   const all = [...opponents].sort((a, b) => champInfo(String(a.championId)).name.localeCompare(champInfo(String(b.championId)).name));
   return `
     <h1 class="page-title">Matchups</h1>
-    <p class="page-sub">Winrate real da Akali contra cada campeão (OP.GG). Clique em um campeão para ver o guia do confronto: dica, quem tem vantagem e a build recomendada contra ele.</p>
+    <p class="page-sub">Winrate real de ${esc(CN())} contra cada campeão da rota (OP.GG). Clique em um campeão para ver o guia do confronto: dica, quem tem vantagem e a build recomendada contra ele.</p>
     ${laneTabs()}
     <div class="calc-row" style="margin-bottom:18px">
       <span class="muted">Guia contra:</span>
@@ -613,14 +637,14 @@ function viewMatchups() {
     ${guidePanel(opponents)}
     ${remoteState(r, 'os matchups') || `
     <div class="grid g2" style="margin-top:16px">
-      <div class="panel"><h2 style="font-size:22px">Counters da Akali ${opggChip()}</h2><p class="muted" style="margin:2px 0 6px;font-size:12px">Menor winrate da Akali (mín. ${minGames} partidas)</p>${hard.map((o) => opponentRow(o, 'hard')).join('')}</div>
-      <div class="panel"><h2 style="font-size:22px">Akali countera ${opggChip()}</h2><p class="muted" style="margin:2px 0 6px;font-size:12px">Maior winrate da Akali (mín. ${minGames} partidas)</p>${easy.map((o) => opponentRow(o, 'easy')).join('')}</div>
+      <div class="panel"><h2 style="font-size:22px">Counters de ${esc(CN())} ${opggChip()}</h2><p class="muted" style="margin:2px 0 6px;font-size:12px">Menor winrate de ${esc(CN())} (mín. ${minGames} partidas)</p>${hard.map((o) => opponentRow(o, 'hard')).join('')}</div>
+      <div class="panel"><h2 style="font-size:22px">${esc(CN())} countera ${opggChip()}</h2><p class="muted" style="margin:2px 0 6px;font-size:12px">Maior winrate de ${esc(CN())} (mín. ${minGames} partidas)</p>${easy.map((o) => opponentRow(o, 'easy')).join('')}</div>
     </div>`}
-    <div class="section-title">Dicas rápidas <small>como jogar as lanes mais comuns</small></div>
+    ${mu ? `<div class="section-title">Dicas rápidas <small>como jogar as lanes mais comuns</small></div>
     <div class="grid g2">
       <div class="panel"><h2 style="font-size:20px">Lanes difíceis</h2>${mu.counters.map((m) => tipRow(m, 'hard')).join('')}</div>
       <div class="panel"><h2 style="font-size:20px">Lanes favoráveis</h2>${mu.favorable.map((m) => tipRow(m, 'easy')).join('')}</div>
-    </div>
+    </div>` : ''}
     ${S.player ? `<div class="section-title">Seus matchups reais <small>${LANES[S.lane]} · partidas recentes</small></div>${personal}` : ''}`;
 }
 
@@ -631,7 +655,7 @@ function queueSelect() {
 
 function viewStats() {
   const p = S.player;
-  if (!p) return `<h1 class="page-title">Minhas estatísticas</h1><p class="page-sub">Seu desempenho jogando de Akali.</p>${needPlayer()}`;
+  if (!p) return `<h1 class="page-title">Minhas estatísticas</h1><p class="page-sub">Seu desempenho jogando de ${esc(CN())}.</p>${needPlayer()}`;
   const ms = filteredMatches();
   const a = agg(ms);
   const prof = useRemote(`prof:${p.gameName}#${p.tagLine}`, `/api/opgg/profile?name=${encodeURIComponent(p.gameName)}&tag=${encodeURIComponent(p.tagLine)}&platform=${p.platform || 'br1'}`);
@@ -644,7 +668,7 @@ function viewStats() {
 
   return `
     <h1 class="page-title">Minhas estatísticas</h1>
-    <p class="page-sub">Partidas de Akali entre as últimas ${p.scanned ?? ms.length} que você jogou.</p>
+    <p class="page-sub">Partidas de ${esc(CN())} entre as últimas ${p.scanned ?? ms.length} que você jogou.</p>
     <div class="panel" style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center">
       <div class="profile">
         <div class="pic"><img src="${img.profile(p.profileIconId)}" alt=""><span>${p.summonerLevel ?? ''}</span></div>
@@ -660,8 +684,8 @@ function viewStats() {
     </div>
     ${og ? opggSeason(og) : ''}
 
-    <div class="section-title">Resumo de Akali ${queueSelect()}</div>
-    ${!ms.length ? `<div class="empty">Nenhuma partida de Akali encontrada${S.queue !== 'all' ? ' nessa fila' : ''}. Jogue algumas e volte aqui!</div>` : `
+    <div class="section-title">Resumo de ${esc(CN())} ${queueSelect()}</div>
+    ${!ms.length ? `<div class="empty">Nenhuma partida de ${esc(CN())} encontrada${S.queue !== 'all' ? ' nessa fila' : ''}. Jogue algumas e volte aqui!</div>` : `
     <div class="grid g6">
       ${tile('Partidas', a.n, `${a.w}V ${a.l}D`)}
       ${tile('Winrate', pct(a.wr), '', a.wr >= 50 ? 'win' : 'loss')}
@@ -687,21 +711,21 @@ function viewStats() {
 }
 
 function opggSeason(og) {
-  const a = og.akali;
+  const a = og.focus ? og.focus[CH().key] : CH().key === 84 ? og.akali : null;
   const min = a ? a.seconds / 60 : 0;
   return `
     <div class="section-title">Temporada ranqueada ${opggChip()} <a class="btn small" href="${esc(og.url)}" target="_blank" rel="noopener" style="margin-left:auto">Abrir perfil no OP.GG ↗</a></div>
     ${a ? `<div class="grid g6">
-      ${tile('Akali na temporada', a.games, `${a.wins}V ${a.games - a.wins}D`)}
+      ${tile(`${esc(CN())} na temporada`, a.games, `${a.wins}V ${a.games - a.wins}D`)}
       ${tile('Winrate', pctR(a.wins / a.games), '', wrCls(a.wins / a.games))}
       ${tile('KDA', fmt((a.kills + a.assists) / Math.max(1, a.deaths), 2), `${fmt(a.kills / a.games, 1)} / ${fmt(a.deaths / a.games, 1)} / ${fmt(a.assists / a.games, 1)}`)}
       ${tile('CS/min', fmt(a.cs / Math.max(1, min), 1))}
       ${tile('Dano/min', fmt(a.damage / Math.max(1, min)))}
       ${tile('Pentakills', a.pentas || 0)}
-    </div>` : '<div class="empty">Nenhuma ranqueada de Akali nesta temporada segundo o OP.GG.</div>'}
+    </div>` : `<div class="empty">Nenhuma ranqueada de ${esc(CN())} nesta temporada segundo o OP.GG.</div>`}
     ${og.champions.length ? `<div class="panel" style="margin-top:16px"><div class="block-label">Seus campeões mais jogados em ranqueada</div><table><tbody>
       ${og.champions.slice(0, 6).map((c) => `<tr>
-        <td><div class="who">${champIcon(String(c.championId), 'sm')} ${esc(champInfo(String(c.championId)).name)} ${c.championId === 84 ? '<span class="chip pink">♥</span>' : ''}</div></td>
+        <td><div class="who">${champIcon(String(c.championId), 'sm')} ${esc(champInfo(String(c.championId)).name)} ${c.championId === CH().key ? '<span class="chip pink">♥</span>' : ''}</div></td>
         <td>${c.games} jogos</td><td class="${wrCls(c.wins / c.games)}">${pctR(c.wins / c.games)}</td>
         <td>${fmt((c.kills + c.assists) / Math.max(1, c.deaths), 2)} KDA</td></tr>`).join('')}
     </tbody></table></div>` : ''}`;
@@ -713,7 +737,7 @@ function matchRow(m) {
     <div class="match ${m.win ? 'w' : 'l'}">
       <div class="side"></div>
       <div style="display:flex;gap:4px;align-items:center">
-        <img class="icon lg" src="${img.champ('Akali')}" alt="Akali">
+        <img class="icon lg" src="${img.champ(champInfo(String(m.championId ?? 84)).id)}" alt="">
         <div style="display:grid;gap:3px">${runeIcon(m.keystone, 'shard')}${runeIcon(m.secondaryStyle, 'shard')}</div>
       </div>
       <div>
@@ -748,9 +772,9 @@ const GRADE_TXT = (g) => `nota <b>${esc(g)}</b> ou melhor`;
 
 function viewMastery() {
   const p = S.player;
-  if (!p) return `<h1 class="page-title">Maestria</h1><p class="page-sub">Quanto falta para o próximo nível de maestria de Akali.</p>${needPlayer()}`;
-  const m = p.mastery;
-  if (!m) return `<h1 class="page-title">Maestria</h1><div class="empty">Você ainda não tem pontos de maestria com a Akali. Bora jogar a primeira!</div>`;
+  if (!p) return `<h1 class="page-title">Maestria</h1><p class="page-sub">Quanto falta para o próximo nível de maestria de ${esc(CN())}.</p>${needPlayer()}`;
+  const m = masteryOf(p);
+  if (!m) return `<h1 class="page-title">Maestria</h1><div class="empty">Você ainda não tem pontos de maestria com ${esc(CN())}. Bora jogar a primeira!</div>`;
 
   const since = m.championPointsSinceLastLevel || 0;
   const until = Math.max(0, m.championPointsUntilNextLevel || 0);
@@ -759,12 +783,12 @@ function viewMastery() {
   const marksHave = m.tokensEarned || 0;
   const marksMissing = Math.max(0, marksNeed - marksHave);
 
-  const real = realPointsPerGame(p.masteryHistory, p.matches);
+  const real = realPointsPerGame(historyOf(p), champMatches(p));
   const override = store.get('ppg', null);
   const ppg = override || (real ? Math.round(real.ppg) : DEFAULT_PPG);
   const ppgSource = override ? 'valor definido por você' : real ? `média real de ${real.games} partida(s) acompanhadas` : 'estimativa padrão — fica precisa conforme você joga com o app aberto';
   const gamesNeeded = until > 0 ? Math.ceil(until / ppg) : 0;
-  const pace = gamesPerDay(p.matches || []);
+  const pace = gamesPerDay(champMatches(p));
   const days = pace > 0 ? Math.ceil(gamesNeeded / pace) : null;
 
   const ms = m.nextSeasonMilestone;
@@ -775,7 +799,7 @@ function viewMastery() {
 
   return `
     <h1 class="page-title">Maestria</h1>
-    <p class="page-sub">Sua progressão de maestria com a Akali e a previsão de partidas para o próximo nível.</p>
+    <p class="page-sub">Sua progressão de maestria com ${esc(CN())} e a previsão de partidas para o próximo nível.</p>
     <div class="panel mastery-hero">
       <div class="crest" style="--p:${prog.toFixed(1)};--img:url('${img.tile(S.bg)}')"><b>${m.championLevel}<small>NÍVEL</small></b></div>
       <div>
@@ -796,7 +820,7 @@ function viewMastery() {
         <div class="hint">${until > 0 ? `com ~${fmt(ppg)} pts por partida` : 'pontos completos!'}${marksMissing ? ` + ${marksMissing} marca(s)` : ''}</div></div>
       <div class="panel tile"><div class="label">No seu ritmo</div>
         <div class="value" style="font-size:44px">${until <= 0 ? '—' : days != null ? `${days} dia${days > 1 ? 's' : ''}` : '—'}</div>
-        <div class="hint">${pace > 0 ? `${fmt(pace, 1)} partidas de Akali/dia (últimos 14 dias)` : 'sem partidas recentes para medir o ritmo'}</div></div>
+        <div class="hint">${pace > 0 ? `${fmt(pace, 1)} partidas de ${esc(CN())}/dia (últimos 14 dias)` : 'sem partidas recentes para medir o ritmo'}</div></div>
       <div class="panel tile"><div class="label">Pontos por partida</div>
         <div class="calc-row" style="margin-top:6px"><input class="input" type="number" min="50" max="3000" step="10" value="${ppg}" data-action="ppg">
         ${override ? '<button class="btn small" data-action="ppg-reset">Usar automático</button>' : ''}</div>
@@ -820,7 +844,7 @@ function viewMastery() {
     ${top.length ? `<div class="section-title">Suas maiores maestrias</div>
     <div class="panel"><table><tbody>${top.map((t, i) => `<tr>
       <td style="width:30px" class="muted">#${i + 1}</td>
-      <td><div class="who">${champIcon(String(t.championId), 'sm')} ${esc(champInfo(String(t.championId)).name)} ${t.championId === 84 ? '<span class="chip pink">♥</span>' : ''}</div></td>
+      <td><div class="who">${champIcon(String(t.championId), 'sm')} ${esc(champInfo(String(t.championId)).name)} ${CHAMPS[champInfo(String(t.championId)).id] ? '<span class="chip pink">♥</span>' : ''}</div></td>
       <td>Nível ${t.championLevel}</td><td>${fmt(t.championPoints)} pts</td></tr>`).join('')}</tbody></table></div>` : ''}`;
 }
 
@@ -829,12 +853,12 @@ function viewSkins() {
   const maxNum = Math.max(...skins.map((s) => s.num));
   return `
     <h1 class="page-title">Skins</h1>
-    <p class="page-sub">${skins.length} skins da Akali. Clique em uma para usar a splash art como fundo do app.</p>
+    <p class="page-sub">${skins.length} skins de ${esc(CN())}. Clique em uma para usar a splash art como fundo do app.</p>
     <div class="skins">
       ${skins.map((s) => `
         <div class="skin ${s.num === S.bg ? 'current' : ''}" data-action="skin" data-num="${s.num}">
           <img src="${img.loading(s.num)}" alt="${esc(skinName(s.num))}" loading="lazy">
-          ${s.num === NEW_KDA_SKIN ? '<span class="chip pink badge">NOVA K/DA</span>' : s.num >= maxNum - 1 ? '<span class="chip gold badge">NOVA</span>' : /K\/DA/.test(s.name) ? '<span class="chip pink badge">K/DA</span>' : ''}
+          ${S.champ === 'Akali' && s.num === NEW_KDA_SKIN ? '<span class="chip pink badge">NOVA K/DA</span>' : s.num >= maxNum - 1 ? '<span class="chip gold badge">NOVA</span>' : /K\/DA/.test(s.name) ? '<span class="chip pink badge">K/DA</span>' : ''}
           <div class="cap">${esc(skinName(s.num))}</div>
         </div>`).join('')}
     </div>`;
@@ -957,7 +981,7 @@ async function saveKeyForm(form) {
 const VIEWS = { '': viewHome, builds: viewBuilds, matchups: viewMatchups, stats: viewStats, mastery: viewMastery, skins: viewSkins, config: viewConfig, live: viewLive };
 const currentRoute = () => location.hash.replace(/^#\/?/, '').split('?')[0];
 function render() {
-  if (!S.akali) return;
+  if (!S.cd) return;
   const r = VIEWS[currentRoute()] ? currentRoute() : '';
   document.body.dataset.page = r || 'home';
   document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === r));
@@ -971,8 +995,9 @@ function bindEvents() {
     const el = e.target.closest('[data-action]');
     if (!el) return;
     const act = el.dataset.action;
-    if (act === 'lane') { S.lane = el.dataset.lane; S.guideOpp = null; store.set('lane', S.lane); render(); }
-    if (act === 'skin') { const n = Number(el.dataset.num); setBg(n); store.set('bgSkin', n); setTimeout(render, 50); }
+    if (act === 'lane') { S.lane = el.dataset.lane; S.guideOpp = null; store.set(`lane:${S.champ}`, S.lane); render(); }
+    if (act === 'skin') { const n = Number(el.dataset.num); setBg(n); store.set(`bgSkin:${S.champ}`, n); setTimeout(render, 50); }
+    if (act === 'champ') selectChampion(el.dataset.champ);
     if (act === 'detect') detectClient();
     if (act === 'logout') { S.player = null; store.del('riotId'); render(); renderAccount(); }
     if (act === 'ppg-reset') { store.del('ppg'); render(); }
@@ -1013,6 +1038,35 @@ function bindEvents() {
   window.addEventListener('hashchange', () => { render(); scrollTo(0, 0); });
 }
 
+// ---------------- troca de campeão ----------------
+async function loadChampionData(id) {
+  if (!S.cdCache[id]) S.cdCache[id] = (await getJSON(`${DD}/cdn/${S.v}/data/${LANG}/champion/${id}.json`)).data[id];
+  return S.cdCache[id];
+}
+function renderChampSwitch() {
+  const box = $('#champSwitch');
+  if (!box) return;
+  box.innerHTML = Object.keys(CHAMPS).map((id) => `
+    <button class="champ-btn ${id === S.champ ? 'on' : ''}" data-action="champ" data-champ="${id}" data-tip="text:${esc(S.champsById[id]?.name || id)}">
+      <img src="${img.champ(id)}" alt="${esc(id)}"></button>`).join('');
+}
+async function selectChampion(id, { silent = false } = {}) {
+  if (!CHAMPS[id]) return;
+  S.cd = await loadChampionData(id);
+  S.champ = id;
+  store.set('champ', id);
+  S.guideOpp = null;
+  const savedLane = store.get(`lane:${id}`, null);
+  S.lane = CHAMPS[id].lanes.includes(savedLane) ? savedLane : CHAMPS[id].lanes[0];
+  $('#brandIcon').src = img.champ(id);
+  $('#brandName').textContent = CN().toUpperCase();
+  document.title = `${CN()} Companion`;
+  setBg(store.get(`bgSkin:${id}`, defaultSkin()));
+  if (store.get('rotate', false)) setRotation(true);
+  renderChampSwitch();
+  if (!silent) { render(); renderAccount(); }
+}
+
 // ---------------- inicialização ----------------
 async function init() {
   initTooltip();
@@ -1021,8 +1075,7 @@ async function init() {
     const versions = await getJSON(`${DD}/api/versions.json`);
     S.v = versions[0];
     const base = `${DD}/cdn/${S.v}/data/${LANG}`;
-    const [akali, items, runes, summs, champs, data, config] = await Promise.all([
-      getJSON(`${base}/champion/Akali.json`),
+    const [items, runes, summs, champs, data, config] = await Promise.all([
       getJSON(`${base}/item.json`),
       getJSON(`${base}/runesReforged.json`),
       getJSON(`${base}/summoner.json`),
@@ -1030,7 +1083,6 @@ async function init() {
       getJSON('data/akali.json'),
       getJSON('/api/config').catch(() => S.config),
     ]);
-    S.akali = akali.data.Akali;
     S.items = Object.fromEntries(Object.entries(items.data).map(([k, v]) => [Number(k), v]));
     for (const style of runes) {
       S.runes[style.id] = style;
@@ -1041,14 +1093,14 @@ async function init() {
     S.data = data;
     S.config = config;
     if (config.desktop) document.body.classList.add('desktop');
-    S.lane = store.get('lane', 'MIDDLE');
-    $('#brandIcon').src = img.champ('Akali');
+    // migra preferências antigas (eram só da Akali)
+    if (store.get('bgSkin', null) != null && store.get('bgSkin:Akali', null) == null) store.set('bgSkin:Akali', store.get('bgSkin'));
+    if (store.get('lane', null) && store.get('lane:Akali', null) == null) store.set('lane:Akali', store.get('lane'));
+    await selectChampion(CHAMPS[store.get('champ', 'Akali')] ? store.get('champ', 'Akali') : 'Akali', { silent: true });
   } catch (e) {
     $('#view').innerHTML = `<div class="error">Não foi possível carregar os dados do jogo (Data Dragon). Verifique sua internet.<br>${esc(e.message)}</div>`;
     return;
   }
-  S.bg = store.get('bgSkin', NEW_KDA_SKIN);
-  setBg(S.bg);
   if (store.get('rotate', false)) setRotation(true);
   render();
   autoConnect();

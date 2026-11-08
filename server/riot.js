@@ -11,6 +11,9 @@ export const ENV_FILE = path.join(DATA_DIR, '.env');
 const MATCH_CACHE = path.join(DATA_DIR, 'cache', 'matches');
 
 export const AKALI_ID = 84;
+// campeões que o app acompanha (id numérico -> nome)
+export const FOCUS = { 84: 'Akali', 117: 'Lulu', 29: 'Twitch', 267: 'Nami' };
+export const FOCUS_IDS = Object.keys(FOCUS).map(Number);
 
 // plataforma -> roteamento regional
 const REGIONAL = {
@@ -101,13 +104,14 @@ export async function getAccount(gameName, tagLine, platform) {
 }
 
 export async function getProfile(puuid, platform) {
-  const [summoner, mastery, league, topMastery] = await Promise.all([
+  const [summoner, allMasteries, league] = await Promise.all([
     riot(platform, `/lol/summoner/v4/summoners/by-puuid/${puuid}`),
-    riot(platform, `/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/by-champion/${AKALI_ID}`),
+    riot(platform, `/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}`),
     riot(platform, `/lol/league/v4/entries/by-puuid/${puuid}`),
-    riot(platform, `/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=5`),
   ]);
-  return { summoner, mastery, league: league || [], topMastery: topMastery || [] };
+  const list = allMasteries || [];
+  const masteries = Object.fromEntries(FOCUS_IDS.map((id) => [id, list.find((m) => m.championId === id) || null]));
+  return { summoner, masteries, league: league || [], topMastery: list.slice(0, 5) };
 }
 
 async function cachedMatch(regional, id) {
@@ -125,10 +129,10 @@ async function cachedMatch(regional, id) {
 }
 
 /**
- * Busca as últimas `scan` partidas e devolve só as de Akali, já resumidas.
+ * Busca as últimas `scan` partidas e devolve só as dos campeões acompanhados, já resumidas.
  * Partidas ficam em cache no disco (são imutáveis), então só a 1ª busca é lenta.
  */
-export async function getAkaliMatches(puuid, platform, scan = 60) {
+export async function getFocusMatches(puuid, platform, scan = 60) {
   const regional = regionalOf(platform);
   const ids = (await riot(regional, `/lol/match/v5/matches/by-puuid/${puuid}/ids?start=0&count=${Math.min(scan, 100)}`)) || [];
   const out = [];
@@ -149,7 +153,7 @@ export async function getAkaliMatches(puuid, platform, scan = 60) {
 export function summarizeMatch(m, puuid) {
   const info = m.info;
   const me = info.participants.find((p) => p.puuid === puuid);
-  if (!me || me.championId !== AKALI_ID) return null;
+  if (!me || !FOCUS[me.championId]) return null;
   if (info.gameDuration < 300) return null; // remake
   const team = info.participants.filter((p) => p.teamId === me.teamId);
   const teamKills = team.reduce((a, p) => a + p.kills, 0) || 1;
@@ -160,6 +164,7 @@ export function summarizeMatch(m, puuid) {
   const styles = me.perks?.styles || [];
   return {
     id: m.metadata.matchId,
+    championId: me.championId,
     date: info.gameStartTimestamp || info.gameCreation,
     duration: info.gameDuration,
     queue: info.queueId,

@@ -213,6 +213,7 @@ export function getProfile(gameName, tagLine, platform) {
       seasonGames: s.most_champions?.play ?? null,
       champions: pool.slice(0, 10),
       akali: pool.find((c) => c.championId === 84) || null,
+      focus: Object.fromEntries([84, 117, 29, 267].map((id) => [id, pool.find((c) => c.championId === id) || null])),
     };
   });
 }

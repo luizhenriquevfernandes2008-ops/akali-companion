@@ -329,3 +329,11 @@ td .who { display: flex; gap: 10px; align-items: center; font-weight: 600; }
 .switch-row { display: flex; gap: 10px; align-items: center; cursor: pointer; }
 .switch-row input { width: 18px; height: 18px; accent-color: var(--pink); }
 code { font-size: 12px; background: rgba(255,255,255,.07); padding: 2px 6px; border-radius: 6px; word-break: break-all; }
+
+/* seletor de campeão */
+.champ-switch { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 4px; }
+.champ-btn { padding: 0; border: 2px solid transparent; border-radius: 12px; background: none; cursor: pointer; overflow: hidden; opacity: .55; transition: .15s; aspect-ratio: 1; }
+.champ-btn img { width: 100%; height: 100%; display: block; }
+.champ-btn:hover { opacity: .9; }
+.champ-btn.on { opacity: 1; border-color: var(--pink); box-shadow: 0 0 14px rgba(255,61,154,.45); }
+@media (max-width: 980px) { .champ-switch { grid-template-columns: repeat(4, 40px); } }

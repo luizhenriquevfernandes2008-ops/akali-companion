@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getAccount, getProfile, getAkaliMatches, hasKey, PLATFORMS, DATA_DIR, currentKey, saveKey, testKey } from './riot.js';
+import { getAccount, getProfile, getFocusMatches, hasKey, PLATFORMS, DATA_DIR, currentKey, saveKey, testKey, FOCUS_IDS } from './riot.js';
 import { getLcuData } from './lcu.js';
 import * as opgg from './opgg.js';
 import * as live from './live.js';
@@ -22,18 +22,30 @@ app.use(express.static(path.join(ROOT, 'public')));
 async function readHistory() {
   try { return JSON.parse(await fs.readFile(HISTORY_FILE, 'utf8')); } catch { return {}; }
 }
-async function recordMastery(puuid, mastery) {
-  if (!puuid || !mastery) return [];
+// histórico por campeão: chave "puuid:championId" (versões antigas usavam só o puuid, que era da Akali)
+async function recordMastery(puuid, masteries) {
+  const out = {};
+  if (!puuid || !masteries) return out;
   const all = await readHistory();
-  const list = all[puuid] || [];
-  const last = list[list.length - 1];
-  if (!last || last.points !== mastery.championPoints) {
-    list.push({ t: Date.now(), points: mastery.championPoints, level: mastery.championLevel });
-    all[puuid] = list.slice(-200);
+  let changed = false;
+  if (all[puuid] && !all[`${puuid}:84`]) { all[`${puuid}:84`] = all[puuid]; delete all[puuid]; changed = true; }
+  for (const id of FOCUS_IDS) {
+    const key = `${puuid}:${id}`;
+    const m = masteries[id];
+    const list = all[key] || [];
+    const last = list[list.length - 1];
+    if (m && (!last || last.points !== m.championPoints)) {
+      list.push({ t: Date.now(), points: m.championPoints, level: m.championLevel });
+      all[key] = list.slice(-200);
+      changed = true;
+    }
+    out[id] = all[key] || [];
+  }
+  if (changed) {
     await fs.mkdir(path.dirname(HISTORY_FILE), { recursive: true });
     await fs.writeFile(HISTORY_FILE, JSON.stringify(all));
   }
-  return all[puuid];
+  return out;
 }
 
 const wrap = (fn) => (req, res) =>
@@ -67,7 +79,7 @@ app.post('/api/settings/key', wrap(async (req, res) => {
 app.get('/api/lcu', wrap(async (_req, res) => {
   const data = await getLcuData();
   if (!data) return res.json({ connected: false });
-  const masteryHistory = await recordMastery(data.puuid, data.mastery);
+  const masteryHistory = await recordMastery(data.puuid, data.masteries);
   res.json({ connected: true, ...data, masteryHistory });
 }));
 
@@ -79,7 +91,7 @@ app.get('/api/player', wrap(async (req, res) => {
   const fromLcu = async (warning) => {
     const lcu = await getLcuData();
     if (lcu && lcu.gameName?.toLowerCase() === String(name).toLowerCase()) {
-      const masteryHistory = await recordMastery(lcu.puuid, lcu.mastery);
+      const masteryHistory = await recordMastery(lcu.puuid, lcu.masteries);
       res.json({ source: 'lcu', ...lcu, league: [], masteryHistory, scanned: lcu.matches.length, warning });
       return true;
     }
@@ -98,13 +110,13 @@ app.get('/api/player', wrap(async (req, res) => {
     account = await getAccount(name, tag, platform);
     [profile, matchData] = await Promise.all([
       getProfile(account.puuid, platform),
-      getAkaliMatches(account.puuid, platform, Number(req.query.scan) || 60),
+      getFocusMatches(account.puuid, platform, Number(req.query.scan) || 80),
     ]);
   } catch (e) {
     if (e.status === 403 && (await fromLcu(e.message))) return;
     throw e;
   }
-  const masteryHistory = await recordMastery(account.puuid, profile.mastery);
+  const masteryHistory = await recordMastery(account.puuid, profile.masteries);
   res.json({
     source: 'riot',
     gameName: account.gameName,
@@ -113,7 +125,7 @@ app.get('/api/player', wrap(async (req, res) => {
     platform,
     profileIconId: profile.summoner?.profileIconId,
     summonerLevel: profile.summoner?.summonerLevel,
-    mastery: profile.mastery,
+    masteries: profile.masteries,
     topMastery: profile.topMastery,
     league: profile.league,
     matches: matchData.matches,
@@ -124,10 +136,10 @@ app.get('/api/player', wrap(async (req, res) => {
 
 // ---- OP.GG ----
 app.get('/api/opgg/meta', wrap(async (req, res) => {
-  res.json(await opgg.getMeta(req.query.lane || 'MIDDLE'));
+  res.json(await opgg.getMeta(req.query.lane || 'MIDDLE', req.query.champ || 'Akali'));
 }));
 app.get('/api/opgg/matchup', wrap(async (req, res) => {
-  res.json(await opgg.getMatchup(req.query.lane || 'MIDDLE', req.query.opponent));
+  res.json(await opgg.getMatchup(req.query.lane || 'MIDDLE', req.query.opponent, req.query.champ || 'Akali'));
 }));
 app.get('/api/opgg/profile', wrap(async (req, res) => {
   const { name, tag, platform = 'br1' } = req.query;

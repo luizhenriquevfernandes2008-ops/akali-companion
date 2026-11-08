@@ -1,6 +1,12 @@
 # Akali Companion
 
-Controle o cliente do **League of Legends pelo celular** — entrar na fila, aceitar partida, banir, escolher campeão, feitiços, skin e runas do OP.GG — mais um app de PC para quem joga de Akali: builds por rota, matchups, estatísticas pessoais e previsão de maestria, com splash arts e ícones oficiais.
+Controle o cliente do **League of Legends pelo celular** — entrar na fila, aceitar partida, banir, escolher campeão, feitiços, skin e runas do OP.GG — mais um app de PC com builds, matchups, estatísticas, previsão de maestria e **monitor da partida ao vivo**, com splash arts e ícones oficiais.
+
+**Campeões acompanhados:** Akali (meio/topo), Lulu (suporte/meio), Twitch (atirador/selva) e Nami (suporte) — escolha no seletor da barra lateral.
+
+## Instalação
+Baixe e execute `AkaliCompanion-Setup-<versão>.exe`: o assistente mostra os termos, deixa escolher a pasta e cria atalhos na área de trabalho e no menu Iniciar. Para desinstalar: Configurações do Windows → Aplicativos.
+Para gerar o instalador a partir do código: `npm install` e `npm run dist` (sai em `dist/`).
 
 ## 📱 App de celular (controle remoto)
 

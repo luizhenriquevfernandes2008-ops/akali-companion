@@ -158,12 +158,21 @@ function queueChips(current) {
   return `<div class="chips">${QUEUES.map((q) => `<button class="chip ${q.id === current ? 'on' : ''}" data-act="queue" data-q="${q.id}">${q.name}</button>`).join('')}</div>`;
 }
 
+function partyCard(party) {
+  return `<div class="card" style="margin-top:12px">
+    👥 Você está num grupo de <b>${party.size}</b>${party.queueId ? ` · ${esc(QUEUE_NAME[party.queueId] || `fila ${party.queueId}`)}` : ''}.<br>
+    <span class="muted">Só o líder escolhe a fila e entra na fila. Quando ele procurar partida, o aceite aparece aqui.</span></div>`;
+}
+
 function renderHome() {
   setBackground();
   screen('home', '');
-  patch($('#screen'), `
+  const member = st.party && !st.party.isLeader;
+  patch($('#screen'), member ? `
+    <h1 class="title">Aguardando o líder</h1>
+    ${partyCard(st.party)}` : `
     <h1 class="title">Bora jogar?</h1>
-    <p class="sub">Escolha a fila para criar a sala no cliente.</p>
+    <p class="sub">${st.party ? `Você é o líder do grupo de ${st.party.size}. ` : ''}Escolha a fila para criar a sala no cliente.</p>
     ${queueChips(null)}`);
   updateActionBar('');
 }
@@ -189,6 +198,7 @@ function renderLobby() {
       </div>` : `
       <h1 class="title">${esc(QUEUE_NAME[l.queueId] || 'Sala')}</h1>
       <p class="sub">${l.isLeader ? 'Você é o líder da sala.' : 'Aguardando o líder iniciar a fila.'}</p>
+      ${!l.isLeader && st.party ? partyCard(st.party) : ''}
       ${l.positionSelector ? `
         <div class="label">1ª rota · ${POS_PT[first] || '—'}</div>${posRow('first', first)}
         <div class="label">2ª rota · ${POS_PT[second] || '—'}</div>${posRow('second', second)}` : ''}

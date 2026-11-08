@@ -110,6 +110,16 @@ export async function readState() {
   }
   const st = { connected: true, phase, summoner: summonerCache, settings: getSettings(), event: lastEvent };
 
+  // grupo (party): existe mesmo fora da sala; só o líder pode escolher a fila
+  if (['None', 'Lobby', 'Matchmaking'].includes(phase)) {
+    const pp = await safe('/lol-lobby/v1/parties/player');
+    const party = pp?.currentParty;
+    if (party?.players?.length > 1) {
+      const me = party.players.find((p) => p.puuid === pp.puuid);
+      st.party = { size: party.players.length, isLeader: me?.role === 'LEADER', queueId: party.gameMode?.queueId || null };
+    }
+  }
+
   if (['Lobby', 'Matchmaking', 'ReadyCheck'].includes(phase)) {
     const lobby = await safe('/lol-lobby/v2/lobby');
     if (lobby) {
@@ -216,7 +226,25 @@ export async function opggSpells() {
   return { ok: true, spell1Id: a, spell2Id: b };
 }
 
+// mensagens do cliente traduzidas para algo que dê para entender no celular
+const LCU_ERRORS = {
+  INVALID_PERMISSIONS: 'Só o líder do grupo pode escolher a fila ou entrar na fila.',
+  LOBBY_NOT_FOUND: 'Nenhuma sala aberta no cliente.',
+  GATEKEEPER_RESTRICTED: 'A fila está bloqueada no momento (penalidade ou restrição da conta).',
+  QUEUE_NOT_ENABLED: 'Essa fila não está disponível agora.',
+};
+
 export async function action(type, p = {}) {
+  try {
+    return await runAction(type, p);
+  } catch (e) {
+    const key = Object.keys(LCU_ERRORS).find((k) => String(e.message).includes(k));
+    if (key) throw Object.assign(new Error(LCU_ERRORS[key]), { status: e.status || 400 });
+    throw e;
+  }
+}
+
+async function runAction(type, p = {}) {
   let result;
   switch (type) {
     case 'accept': result = await lcu('POST', '/lol-matchmaking/v1/ready-check/accept'); break;

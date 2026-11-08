@@ -159,8 +159,16 @@ function queueChips(current) {
 }
 
 function partyCard(party) {
+  const queue = party.queueId ? ` · ${esc(QUEUE_NAME[party.queueId] || `fila ${party.queueId}`)}` : '';
+  // fora de sala, mas registrado como membro: geralmente é o grupo da partida anterior que ficou preso
+  if (st.phase === 'None') {
+    return `<div class="card" style="margin-top:12px">
+      👥 O cliente ainda te registra como <b>membro de um grupo de ${party.size}</b>${queue} — normalmente o grupo da sua última partida, que ficou preso.<br><br>
+      <span class="muted">Se você <b>não</b> está em grupo: no PC, clique em <b>JOGAR</b> no cliente uma vez (ou feche e abra o LoL). Depois disso, as filas voltam a aparecer aqui.<br>
+      Se estiver em grupo de verdade: só o líder escolhe a fila; quando ele procurar partida, o aceite aparece aqui.</span></div>`;
+  }
   return `<div class="card" style="margin-top:12px">
-    👥 Você está num grupo de <b>${party.size}</b>${party.queueId ? ` · ${esc(QUEUE_NAME[party.queueId] || `fila ${party.queueId}`)}` : ''}.<br>
+    👥 Você está num grupo de <b>${party.size}</b>${queue}.<br>
     <span class="muted">Só o líder escolhe a fila e entra na fila. Quando ele procurar partida, o aceite aparece aqui.</span></div>`;
 }
 
@@ -169,7 +177,7 @@ function renderHome() {
   screen('home', '');
   const member = st.party && !st.party.isLeader;
   patch($('#screen'), member ? `
-    <h1 class="title">Aguardando o líder</h1>
+    <h1 class="title">Grupo preso no cliente</h1>
     ${partyCard(st.party)}` : `
     <h1 class="title">Bora jogar?</h1>
     <p class="sub">${st.party ? `Você é o líder do grupo de ${st.party.size}. ` : ''}Escolha a fila para criar a sala no cliente.</p>

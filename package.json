@@ -1,7 +1,7 @@
 {
   "name": "akali-app",
   "productName": "Akali Companion",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Companion app da Akali para League of Legends: builds, matchups, estatísticas e previsão de maestria.",
   "author": "L Lawliet",
   "private": true,

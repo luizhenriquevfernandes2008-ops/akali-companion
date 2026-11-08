@@ -228,7 +228,7 @@ export async function opggSpells() {
 
 // mensagens do cliente traduzidas para algo que dê para entender no celular
 const LCU_ERRORS = {
-  INVALID_PERMISSIONS: 'Só o líder do grupo pode escolher a fila ou entrar na fila.',
+  INVALID_PERMISSIONS: 'O cliente diz que você é membro de um grupo, e só o líder escolhe a fila. Se você não está em grupo, clique em JOGAR no cliente do PC uma vez (ou reinicie o LoL) para limpar o grupo antigo.',
   LOBBY_NOT_FOUND: 'Nenhuma sala aberta no cliente.',
   GATEKEEPER_RESTRICTED: 'A fila está bloqueada no momento (penalidade ou restrição da conta).',
   QUEUE_NOT_ENABLED: 'Essa fila não está disponível agora.',

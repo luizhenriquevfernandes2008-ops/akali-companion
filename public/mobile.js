@@ -244,16 +244,106 @@ function renderReady() {
     </div>`);
 }
 
+// ---------------- monitor da partida ----------------
+const itemImg = (id, cls = '') => (id ? `<img class="it ${cls}" src="${DD}/cdn/${G.v}/img/item/${id}.png" alt="" loading="lazy">` : `<span class="it empty ${cls}"></span>`);
+const kda = (p) => `${p.kills}/${p.deaths}/${p.assists}`;
+const signed = (n, suffix = '') => `${n > 0 ? '+' : ''}${n}${suffix}`;
+const diffCls = (n) => (n > 0 ? 'up' : n < 0 ? 'down' : '');
+const ADV_PT = (v, opp) => (!v ? '—' : v === 'EVEN' ? 'Equilibrada' : v === 'Akali' || v === st.live?.me?.champion ? 'Sua' : `Do ${esc(opp)}`);
+const STYLE_PT = { aggressive: 'Agressivo', even: 'Equilibrado', passive: 'Defensivo', defensive: 'Defensivo' };
+
 function renderInGame() {
+  const L = st.live;
   const champ = st.game?.championId;
   setBackground(champ);
   screen('ingame', '');
+  if (!L || L.loading || !L.me) {
+    patch($('#screen'), `
+      <div class="center" style="padding-top:22vh">
+        <div class="muted">${esc(st.game?.queueName || QUEUE_NAME[st.game?.queueId] || '')}</div>
+        <h1 class="title" style="margin-top:6px">Carregando partida…</h1>
+        <p class="sub">O monitor aparece assim que o jogo começar.</p>
+      </div>`);
+    updateActionBar('');
+    return;
+  }
+  const me = L.me, op = L.opponent;
+  const clockBase = recvAt - L.time * 1000;
+  const A = L.teams.ally, E = L.teams.enemy;
+  const goldDiff = A.gold - E.gold;
+  const goldPct = A.gold + E.gold ? (A.gold / (A.gold + E.gold)) * 100 : 50;
+  const countdown = (gameSec) => (gameSec ? `<span data-countdown="${recvAt + (gameSec - L.time) * 1000}">--:--</span>` : '—');
+
+  const lane = op ? (() => {
+    const d = { lvl: me.level - op.level, cs: me.cs - op.cs, gold: me.itemGold - op.itemGold, k: me.kills - op.kills };
+    return `
+      <div class="card lane">
+        <div class="label" style="margin-top:0">Sua rota · ${esc(POS_PT[me.position] || me.position)}</div>
+        <div class="vs">
+          <div class="side"><img src="${img.champ(me.championId)}" alt=""><b>${esc(me.champion)}</b><span>Nv ${me.level} · ${kda(me)}</span></div>
+          <div class="diffs">
+            <div><span class="${diffCls(d.lvl)}">${signed(d.lvl)}</span> nível</div>
+            <div><span class="${diffCls(d.cs)}">${signed(d.cs)}</span> CS</div>
+            <div><span class="${diffCls(d.gold)}">${signed(d.gold)}</span> ouro em itens</div>
+          </div>
+          <div class="side right"><img src="${img.champ(op.championId)}" alt="" class="${op.dead ? 'dead' : ''}"><b>${esc(op.champion)}</b><span>Nv ${op.level} · ${kda(op)}${op.dead ? ` · 💀 ${op.respawn}s` : ''}</span></div>
+        </div>
+        <div class="items-row"><div>${me.items.map((i) => itemImg(i)).join('')}</div><div class="right">${op.items.map((i) => itemImg(i)).join('')}</div></div>
+      </div>`;
+  })() : '';
+
+  const m = L.matchup;
+  const matchup = !op || !m ? '' : m.loading ? `<div class="card muted" style="margin-top:12px">Buscando matchup no OP.GG…</div>` : m.error ? '' : `
+    <div class="card" style="margin-top:12px">
+      <div class="label" style="margin-top:0">Matchup · OP.GG</div>
+      <div class="mu-stats">
+        <div><b class="${m.winRate >= 0.5 ? 'up' : 'down'}">${m.winRate != null ? (m.winRate * 100).toFixed(1) + '%' : '—'}</b><span>vitórias de ${esc(me.champion)}${m.games ? ` (${m.games} jogos)` : ''}</span></div>
+        <div><b>${ADV_PT(m.laneAdvantage, op.champion)}</b><span>vantagem na lane</span></div>
+        <div><b>${STYLE_PT[m.playStyle] || esc(m.playStyle || '—')}</b><span>estilo</span></div>
+      </div>
+      ${m.tip ? `<p class="tip">💡 ${esc(m.tip)}</p>` : ''}
+      ${m.core?.length ? `<div class="muted" style="font-size:12px;margin-top:8px">Core que mais vence contra ${esc(op.champion)}:</div><div class="items-line">${m.core.map((i) => itemImg(i, 'md')).join('<span class="muted">›</span>')}</div>` : ''}
+    </div>`;
+
+  const tips = L.tips?.length ? `
+    <div class="card" style="margin-top:12px">
+      <div class="label" style="margin-top:0">Dicas agora</div>
+      ${L.tips.map((t) => `<div class="tip-row">${t.item ? itemImg(t.item, 'md') : '<span class="tip-ico">⚡</span>'}<span>${esc(t.text)}</span></div>`).join('')}
+    </div>` : '';
+
+  const teamRows = (team) => L.players.filter((p) => p.team === team).map((p) => `
+    <div class="prow ${p.riotId === me.riotId ? 'me' : ''}">
+      <img class="pchamp ${p.dead ? 'dead' : ''}" src="${img.champ(p.championId)}" alt="">
+      <div class="pinfo"><b>${esc(p.champion)}</b><span>Nv ${p.level} · ${kda(p)} · ${p.cs} CS${p.dead ? ` · 💀${p.respawn}s` : ''}</span></div>
+      <div class="pitems">${p.items.map((i) => itemImg(i, 'sm')).join('')}</div>
+    </div>`).join('');
+
+  const feed = L.kills?.length ? `
+    <div class="card" style="margin-top:12px">
+      <div class="label" style="margin-top:0">Últimos abates</div>
+      ${L.kills.map((k) => `<div class="kill ${k.ally ? 'ally' : 'enemy'} ${k.involvesMe ? 'mine' : ''}">
+        <span class="muted">${fmtTime(k.t)}</span>${k.killer ? `<img src="${img.champ(k.killer)}" alt="">` : '<span>🗼</span>'}<span>⚔</span><img src="${img.champ(k.victim)}" alt="">
+      </div>`).join('')}
+    </div>` : '';
+
   patch($('#screen'), `
-    <div class="center" style="padding-top:22vh">
-      <div class="muted">${esc(st.game?.queueName || QUEUE_NAME[st.game?.queueId] || '')}</div>
-      <h1 class="title" style="margin-top:6px">Partida em andamento</h1>
-      ${champ ? `<p class="sub">Você está de <b>${esc(cname(champ))}</b>. Boa sorte! ⚡</p>` : ''}
-    </div>`);
+    <div class="ig-head">
+      <div class="clock" data-gameclock="${clockBase}">0:00</div>
+      <div class="score"><b class="ally">${A.kills}</b><span>×</span><b class="enemy">${E.kills}</b></div>
+    </div>
+    <div class="goldbar"><span style="width:${goldPct.toFixed(1)}%"></span></div>
+    <div class="gold-txt"><span>${(A.gold / 1000).toFixed(1)}k</span><span class="${diffCls(goldDiff)}">${signed(Math.round(goldDiff / 100) / 10, 'k')} em itens</span><span>${(E.gold / 1000).toFixed(1)}k</span></div>
+    <div class="objs">
+      <div>🐉 <b class="ally">${A.dragons.length}</b> × <b class="enemy">${E.dragons.length}</b><small>próx. ${countdown(L.timers.nextDragon)}</small></div>
+      <div>🗼 <b class="ally">${A.towers}</b> × <b class="enemy">${E.towers}</b><small>torres</small></div>
+      <div>👁 <b class="ally">${A.barons}</b> × <b class="enemy">${E.barons}</b><small>${L.timers.nextBaron ? `barão ${countdown(L.timers.nextBaron)}` : 'barões'}</small></div>
+    </div>
+    ${lane}
+    ${matchup}
+    ${tips}
+    <div class="label">Seu time</div><div class="card team-card">${teamRows(L.myTeam)}</div>
+    <div class="label">Time inimigo · dano ${Math.round(L.magicShare * 100)}% mágico</div><div class="card team-card">${teamRows(L.myTeam === 'ORDER' ? 'CHAOS' : 'ORDER')}</div>
+    ${feed}`);
   updateActionBar('');
 }
 
@@ -439,6 +529,13 @@ function tickTimers() {
   });
   document.querySelectorAll('[data-since]').forEach((el) => {
     el.textContent = fmtTime((now - Number(el.dataset.since)) / 1000);
+  });
+  document.querySelectorAll('[data-gameclock]').forEach((el) => {
+    el.textContent = fmtTime((now - Number(el.dataset.gameclock)) / 1000);
+  });
+  document.querySelectorAll('[data-countdown]').forEach((el) => {
+    const left = (Number(el.dataset.countdown) - now) / 1000;
+    el.textContent = left > 0 ? fmtTime(left) : 'agora';
   });
   requestAnimationFrame(tickTimers);
 }

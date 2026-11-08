@@ -152,12 +152,13 @@ export function getMeta(lane, champion = 'Akali') {
 // Mapa completo: winrate da Akali contra cada campeão da rota
 const SAMPLE_OPPONENT = { mid: 'AHRI', top: 'AATROX', jungle: 'LEE_SIN', adc: 'JINX', support: 'THRESH' };
 
-export function getMatchup(lane, opponent) {
+export function getMatchup(lane, opponent, myChampion = 'Akali') {
   const position = toOpggPosition(lane);
   const opp = toOpggChampion(opponent || SAMPLE_OPPONENT[position]);
-  return cached(`mu:${position}:${opp}`, 6 * HOUR, async () => {
+  const mine = toOpggChampion(myChampion);
+  return cached(`mu:${mine}:${position}:${opp}`, 6 * HOUR, async () => {
     const r = await callTool('lol_get_lane_matchup_guide', {
-      my_champion: 'AKALI', opponent_champion: opp, position, lang: LANG,
+      my_champion: mine, opponent_champion: opp, position, lang: LANG,
     });
     const d = r.data || {};
     const runePage = first(d.rune_pages);

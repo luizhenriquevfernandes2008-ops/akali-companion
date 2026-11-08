@@ -6,6 +6,7 @@ import { lcu } from './lcu.js';
 import { gameData } from './ddragon.js';
 import { getMeta } from './opgg.js';
 import { DATA_DIR } from './riot.js';
+import { readGame } from './ingame.js';
 
 // ---------------- configurações persistentes ----------------
 const SETTINGS_FILE = path.join(DATA_DIR, 'live-settings.json');
@@ -27,9 +28,29 @@ const LANE_PT = { TOP: 'Topo', JUNGLE: 'Selva', MIDDLE: 'Meio', BOTTOM: 'Atirado
 
 // ---------------- leitura de estado ----------------
 let summonerCache = null;
-let pickableCache = { key: null, pickable: [], bannable: [] };
+let pickableCache = { pickable: [], bannable: [] };
+let ownedCache = [];
 let lastEvent = null;
 const event = (type, text) => { lastEvent = { id: Date.now(), type, text }; };
+
+// ---------------- registro de diagnóstico (live-log.txt na pasta de dados) ----------------
+const LOG_FILE = path.join(DATA_DIR, 'live-log.txt');
+export function log(kind, data) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    try { if (fs.statSync(LOG_FILE).size > 512 * 1024) fs.renameSync(LOG_FILE, `${LOG_FILE}.old`); } catch { /* ainda não existe */ }
+    fs.appendFileSync(LOG_FILE, `${new Date().toISOString()} ${kind} ${JSON.stringify(data)}\n`);
+  } catch { /* log nunca derruba o app */ }
+}
+let lastSnap = '';
+function logSnapshot(cs, mine, nPick, nBan) {
+  const snap = JSON.stringify({
+    timer: cs.timer?.phase, cell: cs.localPlayerCellId,
+    mine: mine.map((a) => ({ id: a.id, type: a.type, prog: a.isInProgress, done: a.completed, champ: a.championId })),
+    nPick, nBan,
+  });
+  if (snap !== lastSnap) { lastSnap = snap; log('champselect', JSON.parse(snap)); }
+}
 
 async function champSelectState() {
   const cs = await lcu('GET', '/lol-champ-select/v1/session');
@@ -41,15 +62,26 @@ async function champSelectState() {
   const me = cs.myTeam.find((m) => m.cellId === myCell) || {};
   const allyCells = new Set(cs.myTeam.map((m) => m.cellId));
 
-  // listas de campeões disponíveis mudam pouco: atualiza 1x por sessão ou a cada fase
-  const key = `${cs.gameId}:${cs.timer?.phase}`;
-  if (pickableCache.key !== key) {
-    const [pickable, bannable] = await Promise.all([
-      safe('/lol-champ-select/v1/pickable-champion-ids', []),
-      safe('/lol-champ-select/v1/bannable-champion-ids', []),
-    ]);
-    pickableCache = { key, pickable, bannable };
+  // Listas de campeões disponíveis: buscadas a cada atualização (são chamadas locais e baratas).
+  // Antes ficavam em cache por fase — se o cliente respondesse vazio no início da fase,
+  // a lista de banimento ficava vazia até o fim. Agora, se vier vazia, usamos alternativas.
+  let [pickable, bannable] = await Promise.all([
+    safe('/lol-champ-select/v1/pickable-champion-ids', []),
+    safe('/lol-champ-select/v1/bannable-champion-ids', []),
+  ]);
+  if (!Array.isArray(pickable)) pickable = [];
+  if (!Array.isArray(bannable)) bannable = [];
+  const taken = new Set(actions.filter((a) => a.completed && a.championId > 0).map((a) => a.championId));
+  if (!pickable.length) {
+    if (!ownedCache.length) ownedCache = (await safe('/lol-champions/v1/owned-champions-minimal', [])).filter((c) => c.ownership?.owned || c.freeToPlay).map((c) => c.id);
+    pickable = ownedCache.filter((id) => !taken.has(id));
   }
+  if (!bannable.length && current?.type === 'ban') {
+    const { champions } = await gameData();
+    bannable = Object.keys(champions).map(Number).filter((id) => !taken.has(id));
+  }
+  pickableCache = { pickable, bannable };
+  logSnapshot(cs, mine, pickable.length, bannable.length);
 
   let skins = [];
   if (me.championId) {
@@ -90,8 +122,8 @@ async function champSelectState() {
       position: LANE[me.assignedPosition] || null,
       spell1Id: me.spell1Id, spell2Id: me.spell2Id, skinId: me.selectedSkinId,
     },
-    pickable: pickableCache.pickable,
-    bannable: pickableCache.bannable,
+    pickable,
+    bannable,
     skins,
   };
 }
@@ -161,6 +193,10 @@ export async function readState() {
       championId: s?.gameData?.playerChampionSelections?.find((x) => x.puuid === puuid)?.championId
         || players.find((x) => x.puuid === puuid)?.championId || null,
     };
+    // monitor da partida (Live Client Data API, só existe com o jogo rodando)
+    if (['GameStart', 'InProgress', 'Reconnect'].includes(phase)) {
+      st.live = await readGame().catch(() => null);
+    }
   }
   return st;
 }
@@ -236,8 +272,11 @@ const LCU_ERRORS = {
 
 export async function action(type, p = {}) {
   try {
-    return await runAction(type, p);
+    const r = await runAction(type, p);
+    if (!['hover'].includes(type)) log('acao-ok', { type, p });
+    return r;
   } catch (e) {
+    log('acao-erro', { type, p, status: e.status, erro: e.message });
     const key = Object.keys(LCU_ERRORS).find((k) => String(e.message).includes(k));
     if (key) throw Object.assign(new Error(LCU_ERRORS[key]), { status: e.status || 400 });
     throw e;
@@ -267,8 +306,24 @@ async function runAction(type, p = {}) {
       const a = await myCurrentAction();
       const championId = Number(p.championId || a.championId);
       if (!championId) throw Object.assign(new Error('Selecione um campeão'), { status: 400 });
-      await lcu('PATCH', `/lol-champ-select/v1/session/actions/${a.id}`, { championId });
-      result = await lcu('POST', `/lol-champ-select/v1/session/actions/${a.id}/complete`);
+      const url = `/lol-champ-select/v1/session/actions/${a.id}`;
+      // 1º: marca e confirma de uma vez (forma mais compatível); 2º: marca e chama /complete
+      try {
+        await lcu('PATCH', url, { championId, completed: true });
+      } catch (e1) {
+        log('lock-patch-falhou', { id: a.id, type: a.type, championId, erro: e1.message });
+        await lcu('PATCH', url, { championId });
+        await lcu('POST', `${url}/complete`);
+      }
+      // confere se o cliente realmente travou
+      await new Promise((r) => setTimeout(r, 400));
+      const cs = await lcu('GET', '/lol-champ-select/v1/session');
+      const after = (cs.actions || []).flat().find((x) => x.id === a.id);
+      log('lock-resultado', { id: a.id, type: a.type, championId, completed: after?.completed, champ: after?.championId });
+      if (after && !after.completed) {
+        throw Object.assign(new Error(`O cliente não aceitou ${a.type === 'ban' ? 'o banimento' : 'a escolha'} (campeão indisponível ou já escolhido/banido). Tente outro.`), { status: 409 });
+      }
+      result = { ok: true, completed: true };
       break;
     }
     case 'spells':

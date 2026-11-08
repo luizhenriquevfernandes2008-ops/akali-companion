@@ -6,3 +6,5 @@ cache/
 .env
 remote.json
 live-settings.json
+live-log.txt
+live-log.txt.old

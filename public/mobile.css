@@ -161,3 +161,60 @@ h1, h2, h3 { font-family: var(--head); margin: 0; letter-spacing: .5px; }
 .member img { width: 36px; height: 36px; border-radius: 50%; }
 .member .pos { width: 18px; height: 18px; }
 .big-time { font: 700 56px/1 var(--head); }
+
+/* ---------- monitor da partida ---------- */
+.ig-head { display: flex; justify-content: space-between; align-items: center; }
+.ig-head .clock { font: 700 40px/1 var(--head); }
+.ig-head .score { font: 700 34px/1 var(--head); display: flex; gap: 10px; align-items: center; }
+.ig-head .score span { color: var(--muted); font-size: 20px; }
+b.ally, .ally b { color: var(--blue); }
+b.enemy, .enemy b { color: var(--loss); }
+.goldbar { height: 8px; border-radius: 4px; background: rgba(255,84,112,.55); overflow: hidden; margin-top: 12px; }
+.goldbar span { display: block; height: 100%; background: var(--blue); transition: width .6s; }
+.gold-txt { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.up { color: var(--win) !important; }
+.down { color: var(--loss) !important; }
+.objs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.objs > div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; text-align: center; font: 700 17px var(--head); }
+.objs small { display: block; font: 500 11px var(--body); color: var(--muted); margin-top: 2px; }
+
+.lane { margin-top: 14px; }
+.vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+.vs .side { display: grid; justify-items: start; gap: 2px; font-size: 12px; color: var(--muted); }
+.vs .side.right { justify-items: end; text-align: right; }
+.vs .side img { width: 56px; height: 56px; border-radius: 14px; border: 2px solid var(--blue); }
+.vs .side.right img { border-color: var(--loss); }
+.vs .side b { color: var(--text); font: 700 17px var(--head); }
+.vs .diffs { display: grid; gap: 4px; font-size: 12px; color: var(--muted); text-align: center; }
+.vs .diffs span { font: 700 17px var(--head); color: var(--text); }
+img.dead, .pchamp.dead { filter: grayscale(1) brightness(.5); }
+.items-row { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.items-row > div { display: flex; gap: 3px; flex-wrap: wrap; }
+.items-row .right { justify-content: flex-end; }
+.it { width: 26px; height: 26px; border-radius: 6px; display: inline-block; vertical-align: middle; background: rgba(255,255,255,.05); }
+.it.md { width: 34px; height: 34px; border-radius: 8px; }
+.it.sm { width: 20px; height: 20px; border-radius: 4px; }
+.it.empty { border: 1px dashed var(--line); }
+.items-line { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+
+.mu-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+.mu-stats b { display: block; font: 700 20px var(--head); }
+.mu-stats span { font-size: 11px; color: var(--muted); }
+.tip { margin: 10px 0 0; font-size: 13px; color: #d9d2ea; }
+.tip-row { display: flex; gap: 10px; align-items: center; padding: 6px 0; font-size: 13px; }
+.tip-row + .tip-row { border-top: 1px solid var(--line); }
+.tip-ico { width: 34px; text-align: center; font-size: 18px; flex: none; }
+
+.team-card { padding: 6px 10px; }
+.prow { display: grid; grid-template-columns: 38px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; }
+.prow + .prow { border-top: 1px solid var(--line); }
+.prow.me { background: rgba(255,61,154,.1); border-radius: 10px; margin: 0 -6px; padding: 6px; }
+.pchamp { width: 38px; height: 38px; border-radius: 10px; }
+.pinfo { min-width: 0; font-size: 11px; color: var(--muted); line-height: 1.3; }
+.pinfo b { display: block; color: var(--text); font-size: 13px; }
+.pitems { display: grid; grid-template-columns: repeat(3, 20px); gap: 2px; }
+.kill { display: flex; gap: 8px; align-items: center; padding: 4px 0; font-size: 12px; }
+.kill img { width: 26px; height: 26px; border-radius: 6px; }
+.kill.ally img:last-child { border: 2px solid var(--loss); }
+.kill.enemy img:last-child { border: 2px solid var(--blue); }
+.kill.mine { background: rgba(255,61,154,.1); border-radius: 8px; padding: 4px 6px; }

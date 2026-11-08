@@ -8,3 +8,6 @@ remote.json
 live-settings.json
 live-log.txt
 live-log.txt.old
+
+# notas internas (locais)
+CLAUDE.md

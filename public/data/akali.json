@@ -1,0 +1,124 @@
+{
+  "_info": "Dados de referência editáveis. IDs = Data Dragon (itens, runas, feitiços). Atualize quando o meta mudar.",
+  "skillOrder": {
+    "max": ["Q", "E", "W"],
+    "levels": ["Q", "E", "W", "Q", "Q", "R", "Q", "E", "Q", "E", "R", "E", "E", "W", "W", "R", "W", "W"]
+  },
+  "builds": {
+    "MIDDLE": [
+      {
+        "name": "Burst AP — Eletrocutar",
+        "tag": "Mais popular",
+        "desc": "Pico de dano no early/mid game. Ideal contra magos sem mobilidade e quando o objetivo é snowballar e roamar.",
+        "spells": [4, 14],
+        "runes": {
+          "primary": 8100, "keystone": 8112, "minor": [8143, 8140, 8106],
+          "secondary": 8000, "secondaryRunes": [9105, 8014],
+          "shards": [5008, 5008, 5011]
+        },
+        "start": [1056, 2003],
+        "core": [3152, 3020, 4646, 4645],
+        "late": [3157, 3089, 3135, 3100],
+        "situational": [
+          { "item": 3157, "when": "Assassinos AD / precisa de stasis" },
+          { "item": 3102, "when": "Muito CC ou burst mágico (Vex, Malzahar)" },
+          { "item": 3135, "when": "Inimigos stackando resistência mágica" },
+          { "item": 3165, "when": "Cura pesada no time inimigo" }
+        ]
+      },
+      {
+        "name": "Conquistador — Luta estendida",
+        "tag": "Lanes difíceis",
+        "desc": "Mais sustain e dano em trocas longas. Bom contra lutadores mid (Yone, Sylas) e quando o jogo vai longe.",
+        "spells": [4, 12],
+        "runes": {
+          "primary": 8000, "keystone": 8010, "minor": [9111, 9104, 8299],
+          "secondary": 8400, "secondaryRunes": [8444, 8242],
+          "shards": [5008, 5008, 5011]
+        },
+        "start": [1056, 2003],
+        "core": [3152, 3020, 4633, 3157],
+        "late": [3089, 3135, 3102],
+        "situational": [
+          { "item": 4633, "when": "Times com muita vida / lutas longas" },
+          { "item": 3111, "when": "Muito CC inimigo (botas)" }
+        ]
+      }
+    ],
+    "TOP": [
+      {
+        "name": "Conquistador — Top bruiser",
+        "tag": "Mais popular",
+        "desc": "Akali top troca muito mais vezes; o Conquistador e a Resolução te mantém viva nas trocas longas.",
+        "spells": [4, 12],
+        "runes": {
+          "primary": 8000, "keystone": 8010, "minor": [9111, 9104, 8299],
+          "secondary": 8400, "secondaryRunes": [8444, 8473],
+          "shards": [5008, 5008, 5011]
+        },
+        "start": [1056, 2003],
+        "core": [3152, 3020, 4633, 3157],
+        "late": [3089, 3135, 4645],
+        "situational": [
+          { "item": 3047, "when": "Oponente AD que bate básico (Jax, Fiora)" },
+          { "item": 3111, "when": "Oponente com muito CC" },
+          { "item": 3102, "when": "Oponente AP de burst" }
+        ]
+      },
+      {
+        "name": "Golpe Fatal — Gold lead",
+        "tag": "Lanes fáceis",
+        "desc": "Para lanes que você domina: gera ouro extra em cada troca e acelera seus itens.",
+        "spells": [4, 14],
+        "runes": {
+          "primary": 8300, "keystone": 8369, "minor": [8304, 8321, 8347],
+          "secondary": 8100, "secondaryRunes": [8143, 8106],
+          "shards": [5008, 5008, 5011]
+        },
+        "start": [1056, 2003],
+        "core": [3152, 3020, 4646, 4645],
+        "late": [3157, 3089, 3135],
+        "situational": []
+      }
+    ]
+  },
+  "matchups": {
+    "MIDDLE": {
+      "counters": [
+        { "champ": "Galio", "difficulty": 5, "tip": "O W e o passivo anulam seu burst. Jogue por farm e roam com o jungle; evite all-in sem o E dele em recarga." },
+        { "champ": "Malzahar", "difficulty": 5, "tip": "O R dele te tira da névoa. Fique fora de alcance até ele usar o ult; Véu da Banshee ajuda muito." },
+        { "champ": "Vex", "difficulty": 5, "tip": "O passivo dela te dá fear ao dashar. Espere o passivo ser gasto antes de entrar com E/R." },
+        { "champ": "Lissandra", "difficulty": 4, "tip": "W e R dela pegam você na névoa. Jogue segura até o 6 e procure ela sem o W." },
+        { "champ": "Annie", "difficulty": 4, "tip": "Atenção ao stun pronto (4 stacks). Troque só quando o passivo dela não estiver carregado." },
+        { "champ": "Pantheon", "difficulty": 4, "tip": "Domina o early. Farme no Q e no alcance máximo, não troque antes do Explocinturão." },
+        { "champ": "Kassadin", "difficulty": 3, "tip": "Você ganha o early: pressione forte até o 6. Depois do nível 11 ele escala melhor." }
+      ],
+      "favorable": [
+        { "champ": "Xerath", "difficulty": 1, "tip": "Sem mobilidade. Use o W para esquivar do E dele e caia em cima." },
+        { "champ": "Velkoz", "difficulty": 1, "tip": "Desvie do E (knockup) e qualquer troca curta já te dá vantagem." },
+        { "champ": "Ziggs", "difficulty": 2, "tip": "Cuidado com o W (satchel), mas no all-in ele não aguenta você." },
+        { "champ": "Lux", "difficulty": 2, "tip": "Desvie do Q (raiz) com o E e ela fica sem saída." },
+        { "champ": "Azir", "difficulty": 2, "tip": "Você chega nele antes de ele posicionar os soldados. Puna o farm dele." },
+        { "champ": "Hwei", "difficulty": 2, "tip": "Kit lento e previsível. Trocas com Q + passivo e saia antes do CC." },
+        { "champ": "Ryze", "difficulty": 2, "tip": "Antes do 6 você bate mais forte; force trocas no Q antes dele stackar." }
+      ]
+    },
+    "TOP": {
+      "counters": [
+        { "champ": "Renekton", "difficulty": 5, "tip": "Ele vence quase todas as trocas cedo. Farme no Q, peça gank, compre Grevas/Zhonya cedo." },
+        { "champ": "Poppy", "difficulty": 5, "tip": "O W dela bloqueia seus dashes (E/R). Nunca entre com o W dela disponível." },
+        { "champ": "Malphite", "difficulty": 4, "tip": "Armadura alta e Q irritante. Saia de lane pra roamar; dano mágico é sua vantagem." },
+        { "champ": "Sett", "difficulty": 4, "tip": "O W dele zera suas trocas longas. Trocas curtas de Q e saia com passivo." },
+        { "champ": "Pantheon", "difficulty": 4, "tip": "Mesma dica do mid: aguente o early, você escala melhor." },
+        { "champ": "Jax", "difficulty": 4, "tip": "O E dele bloqueia seus básicos. Use a névoa para baitar o E e só entre depois." }
+      ],
+      "favorable": [
+        { "champ": "Kayle", "difficulty": 1, "tip": "Kayle é fraca no early: zoneie e puna todo farm até o 6." },
+        { "champ": "Nasus", "difficulty": 2, "tip": "Negue stacks com Q no farm dele. All-in no 6 é quase sempre vitória." },
+        { "champ": "Gangplank", "difficulty": 2, "tip": "Desvie dos barris com o E e você vence as trocas." },
+        { "champ": "Gwen", "difficulty": 3, "tip": "A névoa dela anula seu dano à distância; troque fora do W dela." },
+        { "champ": "Vayne", "difficulty": 2, "tip": "Use a névoa pra evitar o Condenar, e lute perto da parede só quando ela gastar o E." }
+      ]
+    }
+  }
+}

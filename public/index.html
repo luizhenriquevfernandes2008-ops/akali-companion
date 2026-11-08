@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Akali Companion</title>
+  <link rel="icon" href="https://ddragon.leagueoflegends.com/cdn/img/champion/tiles/Akali_102.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Fundo com splash art (duas camadas para crossfade) -->
+  <!-- Fundo: arte nítida em tamanho real + cópia desfocada preenchendo a tela -->
+  <div id="bg">
+    <div class="bg-layer" id="bgA"><div class="bg-blur"></div><div class="bg-art"></div></div>
+    <div class="bg-layer" id="bgB"><div class="bg-blur"></div><div class="bg-art"></div></div>
+    <div class="bg-shade"></div>
+    <div class="bg-grain"></div>
+  </div>
+  <div class="titlebar"></div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="#/">
+        <img id="brandIcon" alt="Akali" />
+        <div>
+          <strong>AKALI</strong>
+          <span>companion</span>
+        </div>
+      </a>
+      <nav id="nav">
+        <a href="#/" data-route="">Início</a>
+        <a href="#/live" data-route="live">⚡ Ao vivo</a>
+        <a href="#/builds" data-route="builds">Builds</a>
+        <a href="#/matchups" data-route="matchups">Matchups</a>
+        <a href="#/stats" data-route="stats">Minhas estatísticas</a>
+        <a href="#/mastery" data-route="mastery">Maestria</a>
+        <a href="#/skins" data-route="skins">Skins</a>
+        <a href="#/config" data-route="config">Configurações</a>
+      </nav>
+      <div class="account" id="accountBox"></div>
+    </aside>
+
+    <main id="view" aria-live="polite">
+      <div class="loading">Carregando dados do jogo…</div>
+    </main>
+  </div>
+
+  <div id="tooltip" role="tooltip"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

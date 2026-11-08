@@ -1,0 +1,68 @@
+{
+  "name": "akali-app",
+  "productName": "Akali Companion",
+  "version": "1.2.0",
+  "description": "Companion app da Akali para League of Legends: builds, matchups, estatísticas e previsão de maestria.",
+  "author": "L Lawliet",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "dev": "node --watch --env-file-if-exists=.env server/index.js",
+    "app": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
+  },
+  "engines": {
+    "node": ">=20.6"
+  },
+  "build": {
+    "appId": "com.lawliet.akalicompanion",
+    "productName": "Akali Companion",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**",
+      "server/**",
+      "public/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Akali Companion",
+      "artifactName": "AkaliCompanion-Setup-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "AkaliCompanion-Portable-${version}.exe"
+    }
+  }
+}

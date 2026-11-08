@@ -1,0 +1,8 @@
+node_modules/
+dist/
+cache/
+
+# segredos e dados locais (gerados pelo app)
+.env
+remote.json
+live-settings.json

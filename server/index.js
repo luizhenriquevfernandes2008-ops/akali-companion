@@ -7,6 +7,8 @@ import { getLcuData } from './lcu.js';
 import * as opgg from './opgg.js';
 import * as live from './live.js';
 import * as remote from './remote.js';
+import * as desktop from './desktop.js';
+import * as recorder from './recorder.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HISTORY_FILE = path.join(DATA_DIR, 'cache', 'mastery-history.json');
@@ -58,7 +60,7 @@ app.get('/api/config', (_req, res) => res.json({ hasKey: hasKey(), platforms: PL
 
 // ---- configurações (chave da Riot) ----
 const maskKey = (k) => (k ? `${k.slice(0, 10)}…${k.slice(-4)}` : null);
-app.use(['/api/settings', '/api/remote'], remote.localOnly);
+app.use(['/api/settings', '/api/remote', '/api/desktop', '/api/replay'], remote.localOnly);
 app.get('/api/settings', wrap(async (_req, res) => {
   const key = currentKey();
   res.json({ keyPreview: maskKey(key), ...(await testKey(key)) });
@@ -156,6 +158,32 @@ app.post('/api/live/action', wrap(async (req, res) => {
 }));
 app.get('/api/live/settings', (_req, res) => res.json(live.getSettings()));
 app.post('/api/live/settings', (req, res) => res.json(live.setSettings(req.body || {})));
+
+// ---- overlay, atalhos e replay (app de desktop) ----
+app.get('/api/desktop', wrap(async (_req, res) => {
+  await recorder.findFfmpeg();
+  res.json({ settings: desktop.getSettings(), defaults: desktop.DEFAULTS, runtime: desktop.runtime, replay: recorder.status(), clips: await recorder.listClips() });
+}));
+app.post('/api/desktop/settings', (req, res) => res.json({ settings: desktop.setSettings(req.body || {}), runtime: desktop.runtime }));
+app.get('/api/desktop/audio', wrap(async (_req, res) => res.json(await recorder.listAudioDevices({ fresh: true }))));
+app.post('/api/desktop/action', wrap(async (req, res) => {
+  const { type, ...params } = req.body || {};
+  if (type === 'install-ffmpeg') {
+    recorder.downloadFfmpeg().then(() => desktop.request('ffmpeg-ready')).catch((e) => console.error('[ffmpeg]', e.message));
+    return res.json({ ok: true, replay: recorder.status() });
+  }
+  if (!desktop.runtime.desktop) {
+    // modo navegador (npm start): sem overlay/atalhos, mas o replay funciona
+    if (type === 'replay-start') await recorder.startBuffer();
+    else if (type === 'replay-stop') await recorder.stopBuffer();
+    else if (type === 'save-clip') await recorder.saveClip();
+    else return res.status(400).json({ error: 'Disponível só no app de desktop' });
+    return res.json({ ok: true, replay: recorder.status() });
+  }
+  desktop.request(type, params);
+  res.json({ ok: true });
+}));
+app.get('/api/replay/status', (_req, res) => res.json({ ...recorder.status(), runtime: desktop.runtime, settings: desktop.getSettings() }));
 
 // ---- controle pelo celular (só o PC pode ver o token / ligar e desligar) ----
 app.get('/api/remote', wrap(async (_req, res) => res.json(await remote.info(listenPort))));

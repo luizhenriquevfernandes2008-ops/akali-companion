@@ -1,7 +1,7 @@
 {
   "name": "akali-app",
   "productName": "Akali Companion",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Companion para Akali, Lulu, Twitch e Nami: builds, matchups, estatísticas, maestria, controle do cliente pelo celular e monitor de partida.",
   "author": "L Lawliet",
   "private": true,

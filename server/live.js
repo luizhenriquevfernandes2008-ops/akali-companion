@@ -374,7 +374,10 @@ function interval() {
   if (['ReadyCheck', 'ChampSelect', 'Matchmaking'].includes(lastPhase)) return 1000;
   return clients.size ? 2000 : 4000;
 }
-const active = () => clients.size > 0 || settings.autoAccept || settings.autoRunes;
+// quem mais acompanha o estado (overlay / replay no app de desktop)
+const watchers = new Set();
+export function watch(fn) { watchers.add(fn); schedule(0); return () => watchers.delete(fn); }
+const active = () => clients.size > 0 || watchers.size > 0 || settings.autoAccept || settings.autoRunes;
 
 function schedule(ms) {
   clearTimeout(timer);
@@ -390,6 +393,7 @@ async function tick() {
     lastPhase = st.connected ? st.phase : null;
     await automations(st).catch(() => {});
     if (lastEvent) st.event = lastEvent;
+    for (const fn of watchers) { try { fn(st); } catch (e) { console.error('[live] watcher', e.message); } }
     const json = JSON.stringify(st);
     if (json !== lastJson) {
       lastJson = json;

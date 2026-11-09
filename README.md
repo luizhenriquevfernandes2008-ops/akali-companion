@@ -5,8 +5,36 @@ Controle o cliente do **League of Legends pelo celular** — entrar na fila, ace
 **Campeões acompanhados:** Akali (meio/topo), Lulu (suporte/meio), Twitch (atirador/selva) e Nami (suporte) — escolha no seletor da barra lateral.
 
 ## Instalação
-Baixe e execute `AkaliCompanion-Setup-<versão>.exe`: o assistente mostra os termos, deixa escolher a pasta e cria atalhos na área de trabalho e no menu Iniciar. Para desinstalar: Configurações do Windows → Aplicativos.
-Para gerar o instalador a partir do código: `npm install` e `npm run dist` (sai em `dist/`).
+1. Abra a página de **[Releases](https://github.com/luizhenriquevfernandes2008-ops/akali-companion/releases/latest)** e baixe o `AkaliCompanion-Setup-<versão>.exe`.
+2. Execute o instalador: ele mostra os termos, deixa escolher a pasta e cria atalhos na área de trabalho e no menu Iniciar.
+3. Abra o **Akali Companion** pelo atalho. Não precisa instalar Node nem rodar nenhum `.bat`.
+
+> O instalador não tem assinatura digital paga. Se o Windows mostrar "O Windows protegeu o computador", clique em **Mais informações → Executar assim mesmo**. Com o **Smart App Control** ativado, o Windows bloqueia apps sem assinatura: desative em Segurança do Windows → Controle de aplicativos e navegador.
+
+Para desinstalar: Configurações do Windows → Aplicativos.
+
+## 🎬 Overlay da partida e replay
+
+Com o app aberto, um **overlay** aparece por cima do jogo quando a partida começa: sua rota contra o oponente (nível, CS, ouro em itens e itens), timers de Dragão e Barão, placar, matchup do OP.GG e dicas de build.
+Ao mesmo tempo, o app grava a tela num buffer e o atalho salva os **últimos 30 segundos** num `.mp4` (com FFmpeg, usando NVENC, AMF ou Quick Sync quando existem).
+
+| Atalho padrão | O que faz |
+|---|---|
+| `Ctrl + Shift + A` | Mostra/esconde o overlay |
+| `Ctrl + Shift + S` | Salva o replay dos últimos segundos |
+
+- Tudo se configura em **Configurações → Overlay & replay**: atalhos (clique e aperte as teclas), lado e tamanho do overlay, duração (15/30/60/90 s), FPS, qualidade, monitor e áudio.
+- Os vídeos ficam em `Vídeos\Akali Companion`.
+- O FFmpeg é gratuito; se não estiver instalado, o botão **Instalar FFmpeg** instala pelo winget.
+- Deixe o LoL em **Sem bordas** (Vídeo → Modo de janela). Em Tela cheia o jogo cobre o overlay.
+- Som do jogo no replay: ative a *Mixagem estéreo* do Windows (ou use o VB-Audio Cable) e escolha em **Áudio**. Microfone também funciona.
+- O overlay só mostra o que a Live Client Data API oficial da Riot e o OP.GG fornecem, e não recebe cliques (o mouse passa direto para o jogo).
+
+## Desenvolvimento
+- Gerar o instalador: `npm install` e `npm run dist` (sai em `dist/`).
+- Testar o app de desktop sem empacotar: `npm run app`.
+- Rodar só no navegador: `iniciar.bat` ou `npm start` e abrir http://localhost:3000 (sem overlay e sem atalhos globais).
+- Teste visual do overlay sem estar em partida: abra `http://localhost:3000/overlay.html?mock`.
 
 ## 📱 App de celular (controle remoto)
 
@@ -74,6 +102,10 @@ Tudo fica em `public/data/akali.json` (IDs de itens/runas do Data Dragon). Basta
 - `server/index.js` — servidor Express + rotas `/api/*`
 - `server/riot.js` — Riot API (conta, maestria, elo, partidas com cache em `cache/`)
 - `server/lcu.js` — leitura do cliente local do LoL
+- `server/desktop.js` — configurações de overlay, atalhos e replay
+- `server/recorder.js` — buffer de replay com FFmpeg
+- `electron/main.js` — janela principal, overlay e atalhos globais
+- `public/overlay.*` — interface do overlay
 - `public/` — interface (HTML/CSS/JS puro)
 
 Projeto de fã, não afiliado à Riot Games.

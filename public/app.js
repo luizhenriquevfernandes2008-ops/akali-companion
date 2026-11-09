@@ -907,7 +907,8 @@ function viewConfig() {
         <p class="muted" style="margin:0;font-size:12px">A chave de desenvolvimento expira a cada 24h — quando expirar, repita estes passos.</p>
       </div>
     </div>
-    ${liveSection()}`;
+    ${liveSection()}
+    ${desktopSection()}`;
 }
 
 function liveSection() {
@@ -952,6 +953,150 @@ function liveSection() {
       </div>
     </div>`;
 }
+
+// ---- overlay, atalhos e replay (só no app de desktop) ----
+const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
+const ENC_PT = { h264_nvenc: 'NVIDIA NVENC', h264_amf: 'AMD AMF', h264_qsv: 'Intel Quick Sync', libx264: 'processador (x264)' };
+const keyLabel = (a) => (a ? a.replace('Control', 'Ctrl').split('+').map((k) => `<kbd>${esc(k)}</kbd>`).join(' + ') : '<span class="muted">sem atalho</span>');
+const fmtSize = (b) => (b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
+const fmtWhen = (t) => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+function loadDesktop() {
+  return getJSON('/api/desktop').then((d) => { S.desk = d; render(); }).catch(() => {});
+}
+// mantém status de gravação / download atualizado enquanto a tela está aberta
+setInterval(() => { if (S.config?.desktop && currentRoute() === 'config' && !S.capturing) loadDesktop(); }, 2000);
+
+function hotkeyRow(key, title) {
+  const d = S.desk;
+  const sc = d.runtime?.shortcuts?.[key === 'overlayShortcut' ? 'overlay' : 'clip'];
+  const capturing = S.capturing === key;
+  const state = capturing ? (S.hkMsg ? `<span class="hk-bad">${esc(S.hkMsg)}</span>` : '') : !d.settings[key] ? '' : sc && !sc.ok
+    ? '<span class="hk-bad">⚠ em uso por outro programa: escolha outro</span>'
+    : '<span class="hk-ok">✔ ativo</span>';
+  return `
+    <div class="hk-row">
+      <span>${title}</span>
+      <button type="button" class="hotkey ${capturing ? 'on' : ''}" data-action="hotkey" data-key="${key}">${capturing ? 'Pressione as teclas… <span class="muted">(Esc cancela, Del apaga)</span>' : keyLabel(d.settings[key])}</button>
+      ${state}
+    </div>`;
+}
+
+const opt = (val, cur, label) => `<option value="${esc(val)}" ${String(val) === String(cur) ? 'selected' : ''}>${esc(label)}</option>`;
+
+function desktopSection() {
+  if (!S.config?.desktop) return '';
+  if (!S.desk) { S.desk = { loading: true }; loadDesktop(); }
+  const d = S.desk;
+  if (d.loading) return '<div class="section-title">Overlay &amp; replay</div><p class="muted">Carregando…</p>';
+  if (!S.audioDevs) { S.audioDevs = []; getJSON('/api/desktop/audio').then((a) => { S.audioDevs = a; render(); }).catch(() => {}); }
+  const s = d.settings;
+  const r = d.replay;
+
+  const ff = r.ffmpeg
+    ? `<div class="key-status ok"><span class="dot"></span> FFmpeg pronto${r.encoder ? ` · grava com ${esc(ENC_PT[r.encoder] || r.encoder)}` : ''}</div>`
+    : r.download && !r.download.error && !r.download.done
+      ? `<div class="key-status"><span class="dot"></span> Instalando FFmpeg${r.download.via === 'download' ? ` (${Math.round((r.download.progress || 0) * 100)}%)` : ' pelo winget'}… pode levar 1–2 min</div>`
+      : `<div class="key-status bad"><span class="dot"></span> O replay precisa do FFmpeg (grátis).</div>
+         ${r.download?.error ? `<div class="error">Falhou: ${esc(r.download.error)}</div>` : ''}
+         <div><button class="btn primary small" data-action="desk" data-type="install-ffmpeg">Instalar FFmpeg</button></div>`;
+
+  const recStatus = r.recording
+    ? `<div class="key-status ok"><span class="dot"></span> Gravando o buffer agora${r.audio ? ` · áudio: ${esc(r.audio)}` : ' · sem áudio'}</div>`
+    : r.starting ? '<div class="key-status"><span class="dot"></span> Iniciando gravação…</div>'
+      : `<div class="key-status"><span class="dot"></span> Parado${s.replayMode === 'game' ? ': começa sozinho quando a partida carregar' : ''}</div>${r.error ? `<div class="error">${esc(r.error)}</div>` : ''}`;
+
+  const audios = [...new Set([...(S.audioDevs || []), ...(s.replayAudio ? [s.replayAudio] : [])])];
+  const clips = d.clips?.length ? `
+    <div class="clips">${d.clips.map((c) => `
+      <div class="clip"><span>🎬 ${esc(c.name)}</span><span class="muted">${fmtWhen(c.at)} · ${fmtSize(c.size)}</span><button class="btn small" data-action="desk" data-type="open-clip" data-name="${esc(c.name)}">Mostrar</button></div>`).join('')}
+    </div>` : '<p class="muted" style="margin:0;font-size:12px">Nenhum replay salvo ainda.</p>';
+
+  return `
+    <div class="section-title">Overlay &amp; replay</div>
+    <div class="grid g2">
+      <div class="panel build">
+        <h3>Overlay na partida</h3>
+        ${hotkeyRow('overlayShortcut', 'Mostrar / esconder')}
+        <label class="switch-row"><input type="checkbox" data-action="desk-opt" data-opt="overlayAutoShow" ${s.overlayAutoShow ? 'checked' : ''}> Abrir sozinho quando a partida começar</label>
+        <div class="desk-grid">
+          <label>Lado da tela<select class="input" data-action="desk-opt" data-opt="overlaySide">${opt('right', s.overlaySide, 'Direita')}${opt('left', s.overlaySide, 'Esquerda')}</select></label>
+          <label>Tamanho<select class="input" data-action="desk-opt" data-opt="overlayScale">${[[0.8, 'Pequeno'], [0.9, 'Médio'], [1, 'Normal'], [1.15, 'Grande'], [1.3, 'Muito grande']].map(([v, l]) => opt(v, s.overlayScale, l)).join('')}</select></label>
+        </div>
+        <div><button class="btn small" data-action="desk" data-type="toggle-overlay">${d.runtime?.overlayVisible ? 'Esconder overlay' : 'Mostrar overlay agora'}</button></div>
+        <p class="muted" style="font-size:12px;margin:0">Deixe o LoL em <b>Sem bordas</b> (Configurações do jogo → Vídeo → Modo de janela). Em <b>Tela cheia</b> o jogo cobre qualquer overlay. O overlay não recebe cliques: o mouse passa direto pro jogo.</p>
+      </div>
+      <div class="panel build">
+        <h3>Replay · últimos ${s.replaySeconds} segundos</h3>
+        ${ff}
+        ${hotkeyRow('clipShortcut', 'Salvar replay')}
+        <div class="desk-grid">
+          <label>Gravar<select class="input" data-action="desk-opt" data-opt="replayMode">${opt('game', s.replayMode, 'Só durante as partidas')}${opt('always', s.replayMode, 'Sempre (app aberto)')}${opt('off', s.replayMode, 'Desligado')}</select></label>
+          <label>Duração<select class="input" data-action="desk-opt" data-opt="replaySeconds">${[15, 30, 60, 90].map((v) => opt(v, s.replaySeconds, `${v} segundos`)).join('')}</select></label>
+          <label>Qualidade<select class="input" data-action="desk-opt" data-opt="replayQuality">${opt('high', s.replayQuality, 'Alta')}${opt('medium', s.replayQuality, 'Média (arquivo menor)')}</select></label>
+          <label>FPS<select class="input" data-action="desk-opt" data-opt="replayFps">${opt(60, s.replayFps, '60 fps')}${opt(30, s.replayFps, '30 fps')}</select></label>
+          <label>Monitor<select class="input" data-action="desk-opt" data-opt="replayMonitor">${[0, 1, 2, 3].map((v) => opt(v, s.replayMonitor, v ? `Monitor ${v + 1}` : 'Principal')).join('')}</select></label>
+          <label>Áudio<select class="input" data-action="desk-opt" data-opt="replayAudio">${opt('', s.replayAudio, 'Sem áudio')}${audios.map((a) => opt(a, s.replayAudio, a)).join('')}</select></label>
+        </div>
+        <p class="muted" style="font-size:12px;margin:0">Pra gravar o <b>som do jogo</b>, ative a <b>Mixagem estéreo</b> (Painel de som → Gravação → botão direito → Mostrar dispositivos desabilitados) ou instale o VB-Audio Cable, e escolha aqui. Microfone também funciona.</p>
+        ${recStatus}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${r.recording ? '<button class="btn small" data-action="desk" data-type="save-clip">Salvar replay agora</button><button class="btn small" data-action="desk" data-type="replay-stop">Parar gravação</button>'
+            : r.ffmpeg ? '<button class="btn small" data-action="desk" data-type="replay-start">Testar gravação</button>' : ''}
+          <button class="btn small" data-action="desk" data-type="open-clips">Abrir pasta dos replays</button>
+        </div>
+        <div class="label" style="margin-top:4px">Últimos replays <span class="muted" style="font-weight:400">· ${esc(r.clipsDir)}</span></div>
+        ${clips}
+      </div>
+    </div>`;
+}
+
+// ---- captura de atalho ----
+const CODE_KEY = {
+  Space: 'Space', Tab: 'Tab', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Home: 'Home', End: 'End',
+  PageUp: 'PageUp', PageDown: 'PageDown', Insert: 'Insert', Delete: 'Delete', Backspace: 'Backspace',
+  Backquote: '`', Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\',
+  NumpadAdd: 'numadd', NumpadSubtract: 'numsub', NumpadMultiply: 'nummult', NumpadDivide: 'numdiv', NumpadDecimal: 'numdec',
+};
+function accelFromEvent(e) {
+  let k = null;
+  if (/^Key[A-Z]$/.test(e.code)) k = e.code.slice(3);
+  else if (/^Digit\d$/.test(e.code)) k = e.code.slice(5);
+  else if (/^Numpad\d$/.test(e.code)) k = `num${e.code.slice(6)}`;
+  else if (/^F([1-9]|1\d|2[0-4])$/.test(e.code)) k = e.code;
+  else k = CODE_KEY[e.code] || null;
+  if (!k) return null;
+  const mods = [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Super'].filter(Boolean);
+  if (!mods.length && !/^F\d+$/.test(k)) return { error: 'Use Ctrl, Alt ou Shift junto (ou F1–F24), pra não atrapalhar o jogo.' };
+  return { accel: [...mods, k].join('+') };
+}
+function startCapture(key) {
+  S.capturing = key;
+  S.hkMsg = null;
+  post('/api/desktop/action', { type: 'pause-shortcuts' });
+  render();
+}
+function endCapture(value) {
+  const key = S.capturing;
+  S.capturing = null;
+  S.hkMsg = null;
+  const done = () => post('/api/desktop/action', { type: 'resume-shortcuts' }).then(() => setTimeout(loadDesktop, 150));
+  if (value === undefined) { done(); render(); return; }
+  post('/api/desktop/settings', { [key]: value }).then((d) => { S.desk.settings = d.settings; done(); render(); });
+}
+document.addEventListener('keydown', (e) => {
+  if (!S.capturing) return;
+  e.preventDefault(); e.stopPropagation();
+  if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // espera a tecla principal
+  if (e.code === 'Escape') { endCapture(); return; }
+  if ((e.code === 'Delete' || e.code === 'Backspace') && !e.ctrlKey && !e.altKey && !e.shiftKey) { endCapture(''); return; }
+  const r = accelFromEvent(e);
+  if (!r) return;
+  if (r.error) { S.hkMsg = r.error; render(); return; }
+  const other = S.capturing === 'overlayShortcut' ? 'clipShortcut' : 'overlayShortcut';
+  if (S.desk.settings[other] === r.accel) { S.hkMsg = 'Esse já é o outro atalho.'; render(); return; }
+  endCapture(r.accel);
+}, true);
 
 function viewLive() {
   return `
@@ -1003,6 +1148,11 @@ function bindEvents() {
     if (act === 'ppg-reset') { store.del('ppg'); render(); }
     if (act === 'guide') { S.guideOpp = el.dataset.champ; render(); scrollTo({ top: 0, behavior: 'smooth' }); }
     if (act === 'guide-close') { S.guideOpp = null; render(); }
+    if (act === 'hotkey') { if (S.capturing === el.dataset.key) endCapture(); else startCapture(el.dataset.key); }
+    if (act === 'desk') {
+      post('/api/desktop/action', { type: el.dataset.type, name: el.dataset.name })
+        .then(() => setTimeout(loadDesktop, el.dataset.type === 'toggle-overlay' ? 150 : 600));
+    }
     if (act === 'remote-regen') {
       fetch('/api/remote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regenerate: true }) })
         .then((r) => r.json()).then((d) => { S.remote = d; render(); });
@@ -1016,6 +1166,10 @@ function bindEvents() {
     if (el.dataset.action === 'live-opt') {
       fetch('/api/live/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [el.dataset.opt]: el.checked }) })
         .then((r) => r.json()).then((d) => { S.liveSettings = d; render(); });
+    }
+    if (el.dataset.action === 'desk-opt') {
+      const v = el.type === 'checkbox' ? el.checked : el.value;
+      post('/api/desktop/settings', { [el.dataset.opt]: v }).then((d) => { S.desk.settings = d.settings; S.desk.runtime = d.runtime; render(); setTimeout(loadDesktop, 800); });
     }
     if (el.dataset.action === 'remote-toggle') {
       fetch('/api/remote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: el.checked }) })

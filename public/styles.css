@@ -337,3 +337,25 @@ code { font-size: 12px; background: rgba(255,255,255,.07); padding: 2px 6px; bor
 .champ-btn:hover { opacity: .9; }
 .champ-btn.on { opacity: 1; border-color: var(--pink); box-shadow: 0 0 14px rgba(255,61,154,.45); }
 @media (max-width: 980px) { .champ-switch { grid-template-columns: repeat(4, 40px); } }
+
+/* ---- overlay & replay (Configurações) ---- */
+.hk-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hk-row > span:first-child { min-width: 130px; color: var(--muted); font-size: 14px; }
+.hotkey {
+  font: inherit; font-size: 13px; color: var(--text); cursor: pointer; min-width: 150px; text-align: left;
+  padding: 7px 12px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid var(--line);
+}
+.hotkey:hover { border-color: rgba(255,255,255,.25); }
+.hotkey.on { border-color: var(--pink); box-shadow: 0 0 0 2px rgba(255,61,154,.25); }
+kbd {
+  font: 600 12px/1 var(--font-body, inherit); color: var(--text); background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.18); border-bottom-width: 2px; border-radius: 6px; padding: 3px 7px;
+}
+.hk-ok { color: #8ff0c4; font-size: 12px; }
+.hk-bad { color: #ffb0bd; font-size: 12px; }
+.desk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.desk-grid label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.desk-grid .input { width: 100%; }
+.clips { display: grid; gap: 6px; }
+.clip { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; font-size: 13px; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,.04); }
+.clip > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

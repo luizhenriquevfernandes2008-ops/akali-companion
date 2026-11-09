@@ -973,7 +973,9 @@ function hotkeyRow(key, title) {
   const capturing = S.capturing === key;
   const state = capturing ? (S.hkMsg ? `<span class="hk-bad">${esc(S.hkMsg)}</span>` : '') : !d.settings[key] ? '' : sc && !sc.ok
     ? '<span class="hk-bad">⚠ em uso por outro programa: escolha outro</span>'
-    : '<span class="hk-ok">✔ ativo</span>';
+    : sc?.via === 'system'
+      ? '<span class="hk-bad">⚠ ativo, mas pode não funcionar dentro da partida</span>'
+      : '<span class="hk-ok">✔ ativo (funciona dentro da partida)</span>';
   return `
     <div class="hk-row">
       <span>${title}</span>

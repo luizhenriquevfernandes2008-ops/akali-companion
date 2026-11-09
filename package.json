@@ -1,7 +1,7 @@
 {
   "name": "akali-app",
   "productName": "Akali Companion",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Companion para Akali, Lulu, Twitch e Nami: builds, matchups, estatísticas, maestria, controle do cliente pelo celular e monitor de partida.",
   "author": "L Lawliet",
   "private": true,
@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "express": "^4.21.2",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "uiohook-napi": "^1.5.5"
   },
   "devDependencies": {
     "electron": "^45.2.3",
@@ -36,7 +37,9 @@
       "public/**",
       "build/icon.png",
       "package.json",
-      "build/license.txt"
+      "build/license.txt",
+      "!node_modules/uiohook-napi/prebuilds/{darwin,linux}*/**",
+      "!node_modules/uiohook-napi/prebuilds/win32-arm64/**"
     ],
     "win": {
       "target": [
@@ -78,6 +81,9 @@
     },
     "portable": {
       "artifactName": "AkaliCompanion-Portable-${version}.exe"
-    }
+    },
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**"
+    ]
   }
 }

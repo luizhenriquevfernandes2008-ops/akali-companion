@@ -1,8 +1,9 @@
 // Processo principal do app de desktop (Electron)
-import { app, BrowserWindow, Menu, shell, globalShortcut, screen } from 'electron';
+import { app, BrowserWindow, Menu, shell, screen } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setHotkeys, stopHotkeys } from './hotkeys.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,7 +27,8 @@ let recorder;
 let live;
 
 // ---------------- overlay ----------------
-const ov = { wanted: false, auto: false, flashing: false, flashTimer: null };
+// dismissed: o jogador escondeu o overlay nesta partida — não reabre sozinho até a partida acabar
+const ov = { wanted: false, auto: false, dismissed: false, flashing: false, flashTimer: null };
 
 function overlayBounds() {
   const s = desktop.getSettings();
@@ -81,6 +83,7 @@ function updateOverlay() {
 function toggleOverlay() {
   ov.wanted = !ov.wanted;
   ov.auto = false;
+  ov.dismissed = !ov.wanted && inGame;
   ov.flashing = false;
   clearTimeout(ov.flashTimer);
   updateOverlay();
@@ -99,24 +102,21 @@ function flashOverlay(ms = 4000) {
 let shortcutsPaused = false;
 
 function registerShortcuts() {
-  globalShortcut.unregisterAll();
   const s = desktop.getSettings();
-  const result = {};
-  for (const [key, accel, fn] of [['overlay', s.overlayShortcut, toggleOverlay], ['clip', s.clipShortcut, saveClip]]) {
-    if (!accel) { result[key] = { ok: false, accel: '', empty: true }; continue; }
-    let ok = false;
-    if (!shortcutsPaused) {
-      try { ok = globalShortcut.register(accel, fn); } catch { ok = false; }
-    }
-    result[key] = { ok: ok || shortcutsPaused, accel, paused: shortcutsPaused };
-  }
-  desktop.runtime.shortcuts = result;
+  desktop.runtime.shortcuts = setHotkeys(
+    [['overlay', s.overlayShortcut, toggleOverlay], ['clip', s.clipShortcut, saveClip]],
+    { pause: shortcutsPaused },
+  );
 }
 
 // ---------------- replay ----------------
 let inGame = false;
 let lastState = null;
 let stopTimer = null;
+let leftAt = 0;          // quando o estado deixou de parecer "em partida" (pra ignorar oscilações do cliente)
+let lastReplayTry = 0;
+const LEAVE_GRACE = 15000;
+const REPLAY_RETRY = 20000;
 
 function applyReplay({ delayed = false } = {}) {
   const s = desktop.getSettings();
@@ -149,11 +149,29 @@ async function saveClip() {
 function onLiveState(st) {
   lastState = st;
   const nowIn = Boolean(st.connected && GAME_PHASES.includes(st.phase));
-  if (nowIn === inGame) return;
+  // o cliente às vezes some por alguns segundos no meio da partida (LCU ocupado): só considera
+  // que a partida acabou se a fase mudou de verdade ou se ficou sem resposta por um tempo
+  if (!nowIn && inGame && !st.connected) {
+    if (!leftAt) leftAt = Date.now();
+    if (Date.now() - leftAt < LEAVE_GRACE) return;
+  }
+  leftAt = 0;
+  if (nowIn === inGame) {
+    // o FFmpeg pode cair no meio da partida (ex.: o jogo troca de modo de tela): religa
+    if (inGame && Date.now() - lastReplayTry > REPLAY_RETRY) {
+      const r = recorder.status();
+      if (!r.recording && !r.starting) { lastReplayTry = Date.now(); applyReplay(); }
+    }
+    return;
+  }
   inGame = nowIn;
   const s = desktop.getSettings();
-  if (inGame && s.overlayAutoShow && !ov.wanted) { ov.wanted = true; ov.auto = true; updateOverlay(); }
-  if (!inGame && ov.auto) { ov.wanted = false; ov.auto = false; updateOverlay(); }
+  if (inGame && s.overlayAutoShow && !ov.wanted && !ov.dismissed) { ov.wanted = true; ov.auto = true; updateOverlay(); }
+  if (!inGame) {
+    ov.dismissed = false;
+    if (ov.auto) { ov.wanted = false; ov.auto = false; updateOverlay(); }
+  }
+  lastReplayTry = Date.now();
   applyReplay({ delayed: !inGame });
 }
 
@@ -257,7 +275,7 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
+  stopHotkeys();
   recorder?.stopBuffer();
 });
 app.on('window-all-closed', () => app.quit());
